@@ -1236,6 +1236,226 @@ export function createRenderer(canvas) {
     text('JEDA', HUD_BUTTONS.pause.x + 26, HUD_BUTTONS.pause.y + 23, 11, '#fff6e4', 'center', 800);
   }
 
+  function computeNextHint(state) {
+    const wok = state.wok;
+    if (wok.burnt) {
+      return {
+        target: STATIONS.wajan,
+        action: 'BERSIHKAN',
+        text: 'Wajan gosong! Klik WAJAN untuk membersihkan lalu masak ulang',
+      };
+    }
+    if (wok.invalid) {
+      return {
+        target: STATIONS.wajan,
+        action: 'KOSONGKAN',
+        text: 'Campuran salah! Klik WAJAN untuk mengosongkan wajan',
+      };
+    }
+    if (wok.ready) {
+      if (state.hands.every(Boolean)) {
+        return {
+          target: STATIONS.trash,
+          action: 'BUANG (Q)',
+          text: 'Tangan penuh! Klik SAMPAH atau tekan Q dulu, lalu angkat WAJAN',
+        };
+      }
+      return {
+        target: STATIONS.wajan,
+        action: 'ANGKAT!',
+        text: 'Masakan matang! Klik WAJAN sekarang sebelum gosong',
+      };
+    }
+
+    const readyHand = state.hands.find(
+      (item) =>
+        item &&
+        ((item.kind === 'plate' &&
+          state.tickets.some((t) => t.dishId === item.dishId && t.extraKerupuk === item.kerupuk)) ||
+          (item.kind === 'drink' && state.tickets.some((t) => t.dishId === 'esteh'))),
+    );
+    if (readyHand) {
+      return {
+        target: STATIONS.saji,
+        action: 'SAJIKAN',
+        text: 'Pesanan siap di tangan! Klik MEJA SAJI untuk menyajikan ke pelanggan',
+      };
+    }
+
+    if (state.hands.some((item) => item && item.kind === 'cooked')) {
+      return {
+        target: STATIONS.piring,
+        action: 'TARUH',
+        text: 'Klik PIRING untuk menaruh masakan matang ke piring saji',
+      };
+    }
+
+    for (const plate of state.plates) {
+      if (!plate) continue;
+      if (state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk)) {
+        return {
+          target: STATIONS.piring,
+          action: 'AMBIL PIRING',
+          text: `Piring ${DISHES[plate.dishId].short} siap! Klik PIRING lalu klik MEJA SAJI`,
+        };
+      }
+      if (state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk && !plate.kerupuk)) {
+        if (state.hands.some((h) => h && h.kind === 'ing' && h.id === 'kerupuk')) {
+          return {
+            target: STATIONS.piring,
+            action: 'TAMBAH',
+            text: 'Klik PIRING untuk menambahkan KERUPUK ke piring pesanan',
+          };
+        }
+        return {
+          target: STATIONS.bins.find((b) => b.id === 'kerupuk'),
+          action: 'KERUPUK',
+          text: 'Pesanan ini pakai kerupuk! Ambil KERUPUK lalu klik PIRING',
+        };
+      }
+    }
+
+    if (state.board.item) {
+      if (state.board.item.kind === 'ing') {
+        const ingName = INGREDIENTS[state.board.item.id].name;
+        return {
+          target: STATIONS.talenan,
+          action: `CINCANG ${state.board.chops}/${CHOPS_NEEDED}`,
+          text: `Klik TALENAN (${state.board.chops}/${CHOPS_NEEDED}) untuk mencincang ${ingName}`,
+        };
+      }
+      return {
+        target: STATIONS.talenan,
+        action: 'AMBIL',
+        text: 'Selesai dicincang! Klik TALENAN untuk mengambil, lalu masukkan ke WAJAN',
+      };
+    }
+
+    const rawChop = state.hands.find((h) => h && h.kind === 'ing' && INGREDIENTS[h.id].chop);
+    if (rawChop) {
+      return {
+        target: STATIONS.talenan,
+        action: 'CINCANG 3x',
+        text: `${INGREDIENTS[rawChop.id].name} harus dicincang dulu! Klik TALENAN lalu klik 3x`,
+      };
+    }
+
+    const wokReadyIng = state.hands.find(
+      (h) => h && (h.kind === 'chopped' || (h.kind === 'ing' && !INGREDIENTS[h.id].chop && h.id !== 'kerupuk')),
+    );
+    if (wokReadyIng && !wok.cooking) {
+      return {
+        target: STATIONS.wajan,
+        action: 'MASUKKAN',
+        text: `Klik WAJAN untuk memasukkan ${INGREDIENTS[baseId(wokReadyIng.id)].name} ke wajan`,
+      };
+    }
+
+    let targetTicket = null;
+    if (wok.contents.length > 0) {
+      targetTicket = state.tickets.find(
+        (t) => !DISHES[t.dishId].drink && wok.contents.every((c) => DISHES[t.dishId].wok.includes(c)),
+      );
+    }
+    if (!targetTicket) targetTicket = state.tickets[0] || null;
+    if (!targetTicket) {
+      return { target: null, action: '', text: 'Tunggu pesanan pelanggan muncul di PAPAN PESANAN...' };
+    }
+
+    const dish = DISHES[targetTicket.dishId];
+    if (dish.drink) {
+      return {
+        target: STATIONS.dispenser,
+        action: state.dispenser.pouring ? 'MENUANG...' : 'TUANG',
+        text: state.dispenser.pouring
+          ? 'Menunggu ES TEH selesai dituang ke tangan...'
+          : 'Pesanan ES TEH: klik dispenser ES TEH, lalu klik MEJA SAJI',
+      };
+    }
+
+    if (wok.cooking) {
+      return {
+        target: STATIONS.wajan,
+        action: 'TUNGGU',
+        text: `Menunggu ${DISHES[wok.dishId].short} matang di WAJAN, angkat di zona hijau!`,
+      };
+    }
+
+    const nextReq = dish.wok.find((id) => !wok.contents.includes(id)) || dish.wok[0];
+    const reqBase = baseId(nextReq);
+    const bin = STATIONS.bins.find((b) => b.id === reqBase);
+    return {
+      target: bin,
+      action: `AMBIL ${INGREDIENTS[reqBase].name}`,
+      text: `Pesanan ${dish.short}: ambil ${INGREDIENTS[reqBase].name}${
+        INGREDIENTS[reqBase].chop ? ', lalu cincang 3x di TALENAN' : ', lalu masukkan ke WAJAN'
+      }`,
+    };
+  }
+
+  function drawGuidance(state) {
+    const hint = computeNextHint(state);
+
+    // Pulsing target highlight + floating pill pointer above the next interactive station.
+    if (hint.target && hint.action) {
+      const st = hint.target;
+      const pulse = 0.52 + 0.35 * Math.sin(state.time * 6);
+      context.save();
+      roundRect(context, st.x - 3, st.y - 3, st.w + 6, st.h + 6, 10);
+      context.strokeStyle = `rgba(255, 224, 102, ${pulse})`;
+      context.lineWidth = 2.5;
+      context.stroke();
+
+      const bob = Math.sin(state.time * 5) * 2;
+      const cx = Math.max(66, Math.min(VIEW.width - 66, st.x + st.w / 2));
+      const tipY = st.y - 6 + bob;
+      context.font = '800 10.5px system-ui, -apple-system, "Segoe UI", sans-serif';
+      const pw = Math.max(66, Math.ceil(context.measureText(hint.action).width + 18));
+      const py = tipY - 24;
+
+      roundRect(context, cx - pw / 2, py, pw, 19, 6);
+      context.fillStyle = '#231711';
+      context.fill();
+      context.strokeStyle = PALETTE.goldBright;
+      context.lineWidth = 1.6;
+      context.stroke();
+
+      // Downward pointer arrow.
+      context.fillStyle = PALETTE.goldBright;
+      context.beginPath();
+      context.moveTo(cx - 5, py + 19);
+      context.lineTo(cx + 5, py + 19);
+      context.lineTo(cx, tipY);
+      context.closePath();
+      context.fill();
+
+      text(hint.action, cx, py + 13.5, 10.5, PALETTE.goldBright, 'center', 800);
+      context.restore();
+    }
+
+    // Live bottom PANDUAN instruction bar with compact key legend on the right.
+    const bx = 128;
+    const by = 689;
+    const bw = 1024;
+    const bh = 26;
+    context.save();
+    roundRect(context, bx, by, bw, bh, 8);
+    context.fillStyle = 'rgba(28, 17, 11, 0.92)';
+    context.fill();
+    context.strokeStyle = '#c88b4b';
+    context.lineWidth = 1.5;
+    context.stroke();
+
+    roundRect(context, bx + 5, by + 4, 68, 18, 5);
+    context.fillStyle = PALETTE.gold;
+    context.fill();
+    text('PANDUAN', bx + 39, by + 16.5, 10, PALETTE.ink, 'center', 900);
+
+    text(hint.text, bx + 82, by + 17, 12, '#fff9ec', 'left', 700);
+    text('WASD | Spasi/E | Q: buang | P: jeda | M: suara', bx + bw - 12, by + 17, 10.5, '#dfc092', 'right', 600);
+    context.restore();
+  }
+
   function draw(state, screen, best, muted) {
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.fillStyle = PALETTE.backdrop;
@@ -1266,19 +1486,23 @@ export function createRenderer(canvas) {
     drawWajanStatusOverlay(state);
     drawHUD(state, muted);
 
-    // Subtle dark-teak bottom controls bar.
-    roundRect(context, 310, 695, 660, 21, 7);
-    context.fillStyle = 'rgba(35, 23, 17, 0.78)';
-    context.fill();
-    text(
-      'Klik: jalan & pakai  |  WASD: gerak  |  Spasi/E: pakai  |  Q: buang  |  P: jeda  |  M: suara',
-      640,
-      710,
-      11,
-      '#f6e7cb',
-      'center',
-      600,
-    );
+    if (screen === SCREEN_PLAY) {
+      drawGuidance(state);
+    } else {
+      // Subtle dark-teak bottom controls bar on menus/modals.
+      roundRect(context, 310, 695, 660, 21, 7);
+      context.fillStyle = 'rgba(35, 23, 17, 0.78)';
+      context.fill();
+      text(
+        'Klik: jalan & pakai  |  WASD: gerak  |  Spasi/E: pakai  |  Q: buang  |  P: jeda  |  M: suara',
+        640,
+        710,
+        11,
+        '#f6e7cb',
+        'center',
+        600,
+      );
+    }
 
     const displayBest = Math.max(best, state.coins);
     if (screen === SCREEN_TITLE) {

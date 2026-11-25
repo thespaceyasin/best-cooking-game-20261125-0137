@@ -237,32 +237,65 @@ export function drawIngredientIcon(ctx, id, x, y, s) {
     circle(ctx, -r * 0.25, -r * 0.25, r * 0.14);
     ctx.fill();
   } else if (id === 'teh') {
-    // Tall frosted glass of iced amber sweet tea with straw.
+    // Classic Indonesian ribbed gelas belimbing iced tea with ice, straw, lime wedge, and glint.
     ctx.strokeStyle = '#d94832';
-    ctx.lineWidth = Math.max(1.5, s * 0.08);
+    ctx.lineWidth = Math.max(1.8, s * 0.085);
     ctx.beginPath();
-    ctx.moveTo(r * 0.18, -r * 0.95);
-    ctx.lineTo(r * 0.05, r * 0.4);
+    ctx.moveTo(r * 0.24, -r * 0.98);
+    ctx.lineTo(r * 0.04, r * 0.48);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff5e4';
+    ctx.lineWidth = Math.max(1, s * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 0.78);
+    ctx.lineTo(r * 0.16, -r * 0.58);
     ctx.stroke();
 
-    ctx.fillStyle = '#b9641b';
+    // Fresh lime slice perched on top-left rim.
+    ctx.fillStyle = '#389e4b';
+    circle(ctx, -r * 0.42, -r * 0.64, r * 0.28);
+    ctx.fill();
+    ctx.fillStyle = '#b9ee8b';
+    circle(ctx, -r * 0.42, -r * 0.64, r * 0.19);
+    ctx.fill();
+
+    // Amber tea gradient body.
+    const teaGrad = ctx.createLinearGradient(0, -r * 0.68, 0, r * 0.86);
+    teaGrad.addColorStop(0, '#dc8629');
+    teaGrad.addColorStop(0.55, '#b65b17');
+    teaGrad.addColorStop(1, '#7d3409');
+    ctx.fillStyle = teaGrad;
     ctx.beginPath();
     ctx.moveTo(-r * 0.56, -r * 0.68);
     ctx.lineTo(r * 0.56, -r * 0.68);
-    ctx.lineTo(r * 0.42, r * 0.84);
-    ctx.lineTo(-r * 0.42, r * 0.84);
+    ctx.lineTo(r * 0.42, r * 0.86);
+    ctx.lineTo(-r * 0.42, r * 0.86);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#fff3d6';
-    ctx.lineWidth = Math.max(1.2, s * 0.06);
+    ctx.lineWidth = Math.max(1.3, s * 0.06);
     ctx.stroke();
 
-    // Highlight & foam.
+    // Vertical fluted glass ribs.
+    ctx.strokeStyle = 'rgba(255, 245, 224, 0.28)';
+    ctx.lineWidth = Math.max(0.9, s * 0.03);
+    for (const rx of [-0.22, 0.02, 0.24]) {
+      ctx.beginPath();
+      ctx.moveTo(r * rx, -r * 0.58);
+      ctx.lineTo(r * rx * 0.78, r * 0.78);
+      ctx.stroke();
+    }
+
+    // Highlight foam + sparkling translucent ice cubes.
     ctx.fillStyle = 'rgba(255, 224, 150, 0.45)';
-    ctx.fillRect(-r * 0.44, -r * 0.64, r * 0.88, r * 0.22);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    ctx.fillRect(-r * 0.28, -r * 0.3, r * 0.26, r * 0.26);
-    ctx.fillRect(r * 0.04, -r * 0.12, r * 0.24, r * 0.24);
+    ctx.fillRect(-r * 0.44, -r * 0.64, r * 0.88, r * 0.2);
+    ctx.fillStyle = 'rgba(220, 246, 255, 0.72)';
+    roundRect(ctx, -r * 0.32, -r * 0.36, r * 0.3, r * 0.3, r * 0.07);
+    ctx.fill();
+    roundRect(ctx, r * 0.04, -r * 0.18, r * 0.28, r * 0.28, r * 0.07);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillRect(-r * 0.38, -r * 0.5, r * 0.09, r * 1.12);
   } else if (id === 'es') {
     // Translucent sparkling ice cubes.
     ctx.fillStyle = '#bce6fa';
@@ -302,26 +335,35 @@ export function drawPlateIcon(ctx, dishId, kerupuk, x, y, s) {
     return;
   }
 
-  // Ceramic warung plate with classic green/terracotta rim stripe.
+  // Ceramic warung plate with bowl depth shadow, crisp emerald double rim & red accents.
+  ctx.fillStyle = 'rgba(32, 18, 10, 0.2)';
+  circle(ctx, 1, r * 0.08, r);
+  ctx.fill();
+
   ctx.fillStyle = '#fffdf7';
   circle(ctx, 0, 0, r);
   ctx.fill();
   ctx.strokeStyle = '#bfae92';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  ctx.strokeStyle = '#277a4b';
-  ctx.lineWidth = Math.max(1.5, s * 0.05);
-  circle(ctx, 0, 0, r * 0.8);
+  ctx.strokeStyle = '#1f7042';
+  ctx.lineWidth = Math.max(1.8, s * 0.055);
+  circle(ctx, 0, 0, r * 0.84);
   ctx.stroke();
 
-  ctx.fillStyle = '#f4ebd9';
-  circle(ctx, 0, 0, r * 0.7);
+  ctx.strokeStyle = 'rgba(200, 75, 49, 0.55)';
+  ctx.lineWidth = Math.max(1, s * 0.028);
+  circle(ctx, 0, 0, r * 0.76);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f2e6d0';
+  circle(ctx, 0, 0, r * 0.71);
   ctx.fill();
 
   // Subtle rim highlight arc.
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.lineWidth = Math.max(1, s * 0.035);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.lineWidth = Math.max(1.2, s * 0.038);
   ctx.beginPath();
   ctx.arc(0, 0, r * 0.9, -Math.PI * 0.85, -Math.PI * 0.35);
   ctx.stroke();
@@ -333,115 +375,141 @@ export function drawPlateIcon(ctx, dishId, kerupuk, x, y, s) {
   const isSpesial = Boolean(dish && dish.name.includes('SPESIAL'));
 
   if (isSate) {
-    // Peanut sauce puddle + 4 fanned grilled chicken skewers + lime wedge.
-    ctx.fillStyle = '#9c5223';
+    // Rich peanut sauce puddle with kecap drizzle + 4 char-marked skewers + lontong & lime.
+    ctx.fillStyle = '#8b431c';
     ctx.beginPath();
-    ctx.ellipse(0, r * 0.1, r * 0.56, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, r * 0.1, r * 0.58, r * 0.44, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = '#331708';
+    ctx.lineWidth = Math.max(1, s * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.3, r * 0.04);
+    ctx.quadraticCurveTo(0, r * 0.24, r * 0.32, r * 0.02);
+    ctx.stroke();
 
     for (let k = -1; k <= 2; k += 1) {
       ctx.save();
-      ctx.rotate(k * 0.22 - 0.1);
-      ctx.strokeStyle = '#e5c687';
-      ctx.lineWidth = Math.max(1.2, s * 0.04);
+      ctx.rotate(k * 0.21 - 0.1);
+      ctx.strokeStyle = '#e7c687';
+      ctx.lineWidth = Math.max(1.4, s * 0.042);
       ctx.beginPath();
-      ctx.moveTo(0, r * 0.58);
-      ctx.lineTo(0, -r * 0.56);
+      ctx.moveTo(0, r * 0.6);
+      ctx.lineTo(0, -r * 0.58);
       ctx.stroke();
 
-      ctx.fillStyle = '#d16f33';
-      for (const cy of [-0.3, -0.05, 0.2]) {
-        roundRect(ctx, -r * 0.11, cy * r - r * 0.08, r * 0.22, r * 0.18, r * 0.05);
+      for (const cy of [-0.32, -0.06, 0.2]) {
+        ctx.fillStyle = '#d1692d';
+        roundRect(ctx, -r * 0.12, cy * r - r * 0.08, r * 0.24, r * 0.18, r * 0.05);
         ctx.fill();
+        // Grill char stripe.
+        ctx.fillStyle = '#5e2309';
+        ctx.fillRect(-r * 0.09, cy * r - r * 0.01, r * 0.18, r * 0.04);
       }
       ctx.restore();
     }
 
-    // Fresh shallot & lime garnish.
-    ctx.fillStyle = '#b375c4';
-    circle(ctx, -r * 0.34, r * 0.25, r * 0.12);
+    // Sliced white lontong, shallots & lime wedge.
+    ctx.fillStyle = '#f6f2e2';
+    circle(ctx, -r * 0.38, -r * 0.2, r * 0.14);
     ctx.fill();
-    ctx.fillStyle = '#47a64a';
-    circle(ctx, r * 0.36, r * 0.26, r * 0.14);
+    ctx.fillStyle = '#b375c4';
+    circle(ctx, -r * 0.36, r * 0.26, r * 0.12);
+    ctx.fill();
+    ctx.fillStyle = '#389e4b';
+    circle(ctx, r * 0.38, r * 0.26, r * 0.15);
+    ctx.fill();
+    ctx.fillStyle = '#b9ee8b';
+    circle(ctx, r * 0.38, r * 0.26, r * 0.09);
     ctx.fill();
   } else if (isMie) {
-    // Glossy stir-fried noodles with green sawi leaves & carrot strips.
-    ctx.fillStyle = isPedas ? '#d96426' : '#e6ab35';
+    // Glossy stir-fried noodles with layered golden ribbons, sawi, carrot strips & sunny egg.
+    ctx.fillStyle = isPedas ? '#cf581f' : '#d99829';
     ctx.beginPath();
-    ctx.ellipse(0, r * 0.04, r * 0.62, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, r * 0.05, r * 0.64, r * 0.52, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = isPedas ? '#f29038' : '#ffd86b';
-    ctx.lineWidth = Math.max(1.5, s * 0.06);
     ctx.lineCap = 'round';
-    for (let i = -1; i <= 1; i += 1) {
+    for (let i = -2; i <= 1; i += 1) {
+      ctx.strokeStyle = isPedas ? '#f29038' : '#ffd86b';
+      ctx.lineWidth = Math.max(1.6, s * 0.058);
       ctx.beginPath();
-      ctx.moveTo(-r * 0.45, i * r * 0.2);
-      ctx.quadraticCurveTo(0, i * r * 0.2 - r * 0.18, r * 0.45, i * r * 0.2);
+      ctx.moveTo(-r * 0.46, i * r * 0.16);
+      ctx.bezierCurveTo(-r * 0.14, i * r * 0.16 - r * 0.16, r * 0.14, i * r * 0.16 + r * 0.14, r * 0.46, i * r * 0.16);
       ctx.stroke();
     }
 
-    // Leafy green sawi & fried shallots.
-    ctx.fillStyle = '#2c8a4b';
-    circle(ctx, -r * 0.28, -r * 0.28, r * 0.15);
+    // Emerald sawi leaves, carrot strips & chicken bits.
+    ctx.fillStyle = '#278246';
+    circle(ctx, -r * 0.3, -r * 0.28, r * 0.16);
     ctx.fill();
-    circle(ctx, r * 0.3, -r * 0.22, r * 0.13);
+    circle(ctx, r * 0.32, -r * 0.2, r * 0.14);
     ctx.fill();
-    ctx.fillStyle = '#d94d26';
-    ctx.fillRect(-r * 0.08, -r * 0.32, r * 0.24, r * 0.08);
-    // Sunny egg yolk accent on noodles.
-    ctx.fillStyle = '#ffd257';
-    circle(ctx, r * 0.04, r * 0.14, r * 0.14);
+    ctx.fillStyle = '#eb5d2a';
+    ctx.fillRect(-r * 0.14, -r * 0.34, r * 0.24, r * 0.08);
+    ctx.fillStyle = '#fffdf8';
+    circle(ctx, r * 0.04, r * 0.14, r * 0.22);
+    ctx.fill();
+    ctx.fillStyle = '#f49d24';
+    circle(ctx, r * 0.06, r * 0.14, r * 0.13);
     ctx.fill();
   } else {
-    // Caramelized Nasi Goreng dome + cucumber slices + tomato + egg / chicken topping.
-    ctx.fillStyle = isPedas ? '#cc662b' : '#df9842';
+    // Caramelized Nasi Goreng dome + lacy telur ceplok + cucumber + tomato + scallions.
+    ctx.fillStyle = isPedas ? '#c85e24' : '#db913a';
     ctx.beginPath();
-    ctx.ellipse(-r * 0.04, r * 0.04, r * 0.58, r * 0.48, 0, 0, Math.PI * 2);
+    ctx.ellipse(-r * 0.04, r * 0.06, r * 0.6, r * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = isPedas ? '#e3803b' : '#f0b65b';
+    ctx.fillStyle = isPedas ? '#e37e39' : '#f2b75a';
     ctx.beginPath();
-    ctx.ellipse(-r * 0.06, -r * 0.04, r * 0.44, r * 0.35, 0, 0, Math.PI * 2);
+    ctx.ellipse(-r * 0.06, -r * 0.03, r * 0.46, r * 0.36, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Fresh cucumber slices on rim.
-    ctx.fillStyle = '#389950';
+    // Subtle rice grain texture dots.
+    ctx.fillStyle = 'rgba(255, 245, 214, 0.5)';
+    for (const [gx, gy] of [[-0.2, 0.05], [-0.04, 0.22], [0.18, 0.14], [-0.26, -0.14]]) {
+      ctx.fillRect(gx * r, gy * r, Math.max(1.5, s * 0.05), Math.max(1.2, s * 0.035));
+    }
+
+    // Crisp cucumber slices & red tomato wedge on upper-left rim.
+    ctx.fillStyle = '#2d8a4b';
     circle(ctx, -r * 0.44, -r * 0.3, r * 0.16);
     ctx.fill();
-    ctx.fillStyle = '#bfe8a9';
+    ctx.fillStyle = '#c4eea9';
     circle(ctx, -r * 0.44, -r * 0.3, r * 0.1);
     ctx.fill();
 
-    // Tomato wedge.
     ctx.fillStyle = '#d43a29';
-    circle(ctx, -r * 0.48, r * 0.06, r * 0.14);
+    circle(ctx, -r * 0.48, r * 0.07, r * 0.15);
     ctx.fill();
 
-    // Sunny-side egg or chicken garnish on top.
+    // Lacy telur ceplok on top (bigger on spesial, classic fried egg on regular/pedas).
+    const eggR = isSpesial ? r * 0.29 : r * 0.24;
+    ctx.fillStyle = '#efe0bf';
+    circle(ctx, r * 0.12, -r * 0.12, eggR + r * 0.03);
+    ctx.fill();
+    ctx.fillStyle = '#fffdf8';
+    circle(ctx, r * 0.11, -r * 0.13, eggR);
+    ctx.fill();
+    ctx.fillStyle = '#f49d24';
+    circle(ctx, r * 0.13, -r * 0.12, eggR * 0.56);
+    ctx.fill();
+    ctx.fillStyle = '#ffd65a';
+    circle(ctx, r * 0.11, -r * 0.14, eggR * 0.35);
+    ctx.fill();
+
     if (isSpesial) {
-      ctx.fillStyle = '#fffdf7';
-      circle(ctx, r * 0.12, -r * 0.14, r * 0.26);
-      ctx.fill();
-      ctx.fillStyle = '#f49d24';
-      circle(ctx, r * 0.14, -r * 0.12, r * 0.14);
-      ctx.fill();
       ctx.fillStyle = '#b85328';
-      roundRect(ctx, -r * 0.28, r * 0.06, r * 0.3, r * 0.18, r * 0.06);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = '#2d8247';
-      ctx.fillRect(-r * 0.12, -r * 0.24, r * 0.14, r * 0.1);
-      ctx.fillStyle = '#ffd257';
-      circle(ctx, r * 0.14, -r * 0.08, r * 0.14);
+      roundRect(ctx, -r * 0.28, r * 0.08, r * 0.32, r * 0.18, r * 0.06);
       ctx.fill();
     }
+    ctx.fillStyle = '#2d8a4b';
+    ctx.fillRect(-r * 0.18, -r * 0.26, r * 0.12, r * 0.08);
   }
 
   if (isPedas) {
-    drawIngredientIcon(ctx, 'cabai', r * 0.34, -r * 0.26, s * 0.32);
+    drawIngredientIcon(ctx, 'cabai', r * 0.34, -r * 0.26, s * 0.34);
   }
   if (kerupuk) {
-    drawIngredientIcon(ctx, 'kerupuk', r * 0.5, r * 0.44, s * 0.44);
+    drawIngredientIcon(ctx, 'kerupuk', r * 0.5, r * 0.44, s * 0.46);
   }
 
   ctx.restore();
@@ -514,6 +582,9 @@ export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
       for (const cx of [-20, -4, 12]) {
         roundRect(ctx, cx, sy - 3.5, 11, 7, 2.5);
         ctx.fill();
+        ctx.fillStyle = '#5e2309';
+        ctx.fillRect(cx + 4, sy - 3.5, 2.5, 7);
+        ctx.fillStyle = '#d46a32';
       }
     }
     ctx.fillStyle = '#ab6bc0';

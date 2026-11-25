@@ -88,7 +88,7 @@ if (shot) {
   const scene = stageShot(shot, seed);
   let painted = 0;
   function paint() {
-    renderer.draw(scene.world.state, scene.screen, 0, false);
+    renderer.draw(scene.world.state, scene.screen, scene.best ?? 0, false);
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else window.__shotReady = true;

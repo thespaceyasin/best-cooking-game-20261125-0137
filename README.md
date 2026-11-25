@@ -31,10 +31,10 @@ http://localhost:8080).
 
 Real renders of the game's own code:
 
-- `screenshots/1-cover.jpg`: day 1 in full rush, wok cooking with steam and sizzle, plate ready
-- `screenshots/2-start.jpg`: warung signboard title screen with hanging lanterns and 4-step guide
-- `screenshots/3-rush.jpg`: day 3, four tickets on the order board with matching ready plate
-- `screenshots/4-end.jpg`: warung closed after too many failed orders
+- `screenshots/1-cover.jpg`: day 3 night rush hour with 4 orders, 4 seated diners, active wok cooking, chopping on the talenan, held ingredients, and sate ready to serve
+- `screenshots/2-start.jpg`: warung signboard title screen with hanging lanterns and 4-step guide over the night-market warung
+- `screenshots/3-rush.jpg`: day 2 golden sunset rush with cabai chopping, sate in the wok, nasgor ready to plate, and just-served es teh with +Rp6.500
+- `screenshots/4-end.jpg`: day 1 shift cleared celebration with 3 stars, 6/6 orders served, 0 failed orders, and Rp95.700 earned
 
 ## License
 

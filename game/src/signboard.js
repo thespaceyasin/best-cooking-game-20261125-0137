@@ -238,8 +238,8 @@ export function drawTitleScreen(ctx, state, best) {
   ctx.fillStyle = PALETTE.muted;
   ctx.fillText('WASD / Klik: gerak & pakai   |   Spasi / E: aksi   |   Q: buang   |   P: jeda', VIEW.width / 2, sy + 388);
 
-  // Best score pill.
-  roundRect(ctx, VIEW.width / 2 - 135, sy + 404, 270, 32, 16);
+  // Tagline or best score pill.
+  roundRect(ctx, VIEW.width / 2 - 150, sy + 404, 300, 32, 16);
   ctx.fillStyle = '#edd8b2';
   ctx.fill();
   ctx.strokeStyle = '#c89b5a';
@@ -247,7 +247,8 @@ export function drawTitleScreen(ctx, state, best) {
   ctx.stroke();
   ctx.font = '800 14px system-ui, -apple-system, "Segoe UI", sans-serif';
   ctx.fillStyle = PALETTE.woodEdge;
-  ctx.fillText(`Skor Terbaik: Rp${best.toLocaleString('id-ID')}`, VIEW.width / 2, sy + 425);
+  const badgeText = best > 0 ? `Skor Terbaik: Rp${best.toLocaleString('id-ID')}` : '7 Resep Nusantara  |  3 Hari Rush Hour';
+  ctx.fillText(badgeText, VIEW.width / 2, sy + 425);
 
   // Bold CTA button.
   const bx = VIEW.width / 2 - 196;

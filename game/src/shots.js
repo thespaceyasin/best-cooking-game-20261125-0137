@@ -192,16 +192,18 @@ function pickQuickTicket(bot, excludeTicket = null) {
   return candidates.sort((a, b) => b.patience - a.patience)[0] || null;
 }
 
-/** Cook a fast live dish into the cook's hand so it can be served immediately in <1s during peak action. */
+/** Cook or pour a fast live dish into the cook's hand so it can be served immediately in <1s during peak action. */
 function holdQuickPlate(bot, excludeTicket = null) {
+  const candidates = bot.state.tickets.filter((t) => t !== excludeTicket);
+  const drinkTicket = candidates.find((t) => DISHES[t.dishId].drink);
+  if (drinkTicket) {
+    bot.use('dispenser', null, null, 'start pour');
+    bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 5, 'drink poured');
+    return drinkTicket;
+  }
   const ticket = pickQuickTicket(bot, excludeTicket);
   if (!ticket) return null;
   const dish = DISHES[ticket.dishId];
-  if (dish.drink) {
-    bot.use('dispenser', null, null, 'start pour');
-    bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 5, 'drink poured');
-    return ticket;
-  }
   for (const id of dish.wok) bot.addIngredientToWok(id);
   bot.waitFor(() => bot.state.wok.cooking || bot.state.wok.ready, 5, 'wok cooking for hand');
   bot.waitFor(() => bot.state.wok.ready, 12, 'dish ready for hand');
@@ -211,91 +213,162 @@ function holdQuickPlate(bot, excludeTicket = null) {
     bot.use('bin', 'kerupuk', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'kerupuk'), 'pick kerupuk for hand');
     bot.use('piring', null, () => bot.state.plates.some((plate) => plate && plate.dishId === ticket.dishId && plate.kerupuk), 'add kerupuk for hand');
   }
-  // Pick up the newly plated dish (slot 1 if slot 0 already holds platedTicket).
   bot.use('piring', null, () => bot.handsHave((item) => item.kind === 'plate'), 'pick plate to hold');
+  const heldPlate = bot.state.hands.find((item) => item && item.kind === 'plate');
+  if (!heldPlate) return null;
+  return bot.state.tickets.find((t) => t.dishId === heldPlate.dishId && t.extraKerupuk === heldPlate.kerupuk) || null;
+}
+
+/** Plate a fresh live wok dish, preferring a no-chop wok dish when available for speed. */
+function plateQuickWokDish(bot, excludeTicket = null) {
+  const noChop = bot.state.tickets
+    .filter((t) => !DISHES[t.dishId].drink && t !== excludeTicket && !DISHES[t.dishId].wok.some((id) => id.endsWith('_c')))
+    .sort((a, b) => b.patience - a.patience)[0];
+  const ticket = noChop || nextWokTicket(bot, excludeTicket);
+  const dish = DISHES[ticket.dishId];
+  for (const id of dish.wok) bot.addIngredientToWok(id);
+  bot.waitFor(() => bot.state.wok.cooking || bot.state.wok.ready, 5, 'wok cooking');
+  bot.waitFor(() => bot.state.wok.ready, 12, 'dish ready');
+  bot.use('wajan', null, () => bot.handsHave((item) => item.kind === 'cooked'), 'take cooked dish');
+  bot.use('piring', null, () => bot.state.plates.some((plate) => plate && plate.dishId === ticket.dishId), 'plate dish');
+  if (ticket.extraKerupuk) {
+    bot.use('bin', 'kerupuk', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'kerupuk'), 'pick kerupuk');
+    bot.use('piring', null, () => bot.state.plates.some((plate) => plate && plate.dishId === ticket.dishId && plate.kerupuk), 'add kerupuk');
+  }
   return ticket;
 }
 
-/** Stage peak action: active wok cooking + quick serve (+Rp + COMBO) + active talenan chop. */
-function stageActionPeak(bot, platedTicket, heldTicket) {
-  // Prep ayam on talenan with 1 chop first.
-  bot.use('bin', 'ayam', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'ayam'), 'pick ayam for chop');
-  bot.use('talenan', null, () => bot.state.board.item && bot.state.board.item.id === 'ayam', 'place ayam on board');
-  bot.use('talenan', null, () => bot.state.board.chops === 1, 'chop ayam 1');
+/** Advance time while serving any urgent ticket before it expires, keeping failsToday === 0. */
+function waitAndKeepHealthy(bot, targetCount, excludeTickets = [], maxSeconds = 20) {
+  const deadline = bot.state.time + maxSeconds;
+  while (bot.state.tickets.length < targetCount && bot.state.time < deadline && !dayEnded(bot.world)) {
+    const urgent = bot.state.tickets
+      .filter((t) => !excludeTickets.includes(t) && t.patience < 13)
+      .sort((a, b) => a.patience - b.patience)[0];
+    if (urgent) {
+      bot.serveTicket(urgent);
+    } else {
+      bot.world.step(DT, { mx: 0, my: 0 });
+    }
+  }
+}
 
-  // Start a wok dish cooking so WAJAN is actively sizzling.
-  const cookTicket = nextWokTicket(bot, platedTicket);
+/** Stage peak action: active wok cooking + quick serve (+Rp + COMBO) + held TANGAN items + active talenan chop. */
+function stageActionPeak(bot, platedTicket, heldTicket, chopId = 'ayam', holdIds = ['cabai', 'kerupuk']) {
+  const cookCandidates = bot.state.tickets.filter((t) => !DISHES[t.dishId].drink && t !== platedTicket && t !== heldTicket);
+  const noChopCook = cookCandidates.find((t) => !DISHES[t.dishId].wok.some((id) => id.endsWith('_c')));
+  const cookTicket = noChopCook || nextWokTicket(bot, platedTicket);
   const dish = DISHES[cookTicket.dishId];
-  for (const id of dish.wok) bot.addIngredientToWok(id);
-  bot.waitFor(() => bot.state.wok.cooking, 3, 'wok actively cooking');
 
-  // Serve the held dish if its ticket is still live -> triggers +Rp float, sparkles, serve slot & COMBO.
+  // If cookTicket needs no chopping, pre-place chopId on talenan first so wok stays sizzling mid-cook!
+  if (!dish.wok.some((id) => id.endsWith('_c'))) {
+    bot.use('bin', chopId, () => bot.handsHave((item) => item.kind === 'ing' && item.id === chopId), `pick ${chopId} for chop`);
+    bot.use('talenan', null, () => bot.state.board.item && bot.state.board.item.id === chopId, `place ${chopId} on board`);
+    bot.use('talenan', null, () => bot.state.board.chops === 1, `chop ${chopId} 1`);
+  }
+
+  for (const id of dish.wok) bot.addIngredientToWok(id);
+  bot.waitFor(() => bot.state.wok.cooking, 4, 'wok actively cooking');
+
+  if (!bot.state.board.item) {
+    bot.use('bin', chopId, () => bot.handsHave((item) => item.kind === 'ing' && item.id === chopId), `pick ${chopId} for chop`);
+    bot.use('talenan', null, () => bot.state.board.item && bot.state.board.item.id === chopId, `place ${chopId} on board`);
+    bot.use('talenan', null, () => bot.state.board.chops === 1, `chop ${chopId} 1`);
+  }
+
+  // Fill TANGAN before serving heldTicket so serve + chop #2 land together within ~0.9s.
+  for (const hid of holdIds) {
+    if (bot.state.hands.some((slot) => slot === null)) {
+      bot.use('bin', hid, null, `hold ${hid} in TANGAN`);
+    }
+  }
+
+  // Serve held dish right at peak so +Rp float, serve slot, sparkles & combo stay visible!
   if (heldTicket && bot.state.tickets.includes(heldTicket)) {
     bot.use('saji', null, () => !bot.state.tickets.includes(heldTicket), 'serve held dish for peak');
   }
 
-  // Land chop #2 on talenan so talenanFlash + chop bits + active wok steam all appear together.
   if (bot.state.board.item && bot.state.board.item.kind === 'ing' && bot.state.board.chops < 2) {
-    bot.use('talenan', null, () => bot.state.board.chops === 2, 'chop ayam 2');
+    bot.use('talenan', null, () => bot.state.board.chops === 2, `chop ${chopId} 2`);
   }
-  stepUntil(bot.world, () => false, 0.12);
+  stepUntil(bot.world, () => false, 0.08);
 }
 
 function stageCover(world) {
   const bot = new Bot(world);
-  bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets for cover');
-  const first = pickQuickTicket(bot);
-  bot.serveTicket(first);
+  bot.waitFor(() => world.state.tickets.length >= 2, 14, 'two tickets for cover');
+  bot.serveTicket(pickQuickTicket(bot));
   bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets after first serve');
-  const platedTicket = plateNextWokDish(bot);
-  bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets before peak');
-  const drinkTicket = world.state.tickets.find((t) => DISHES[t.dishId].drink && t !== platedTicket);
-  let heldTicket = null;
+  const platedTicket = plateQuickWokDish(bot);
+  bot.waitFor(() => world.state.tickets.length >= 4, 22, 'four tickets for cover');
+
+  const drinkTicket = bot.state.tickets.find((t) => DISHES[t.dishId].drink && t !== platedTicket) || null;
   if (drinkTicket) {
     bot.use('dispenser', null, null, 'pour esteh for cover peak');
     bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 4, 'esteh poured');
-    heldTicket = drinkTicket;
   }
-  stageActionPeak(bot, platedTicket, heldTicket);
+
+  stageActionPeak(bot, platedTicket, drinkTicket, 'ayam', ['cabai', 'kerupuk']);
+  if (world.state.tickets.length < 3) {
+    throw new Error(`cover: expected >=3 live tickets, got ${world.state.tickets.length}`);
+  }
+  if (!world.state.wok.cooking && !world.state.wok.ready) {
+    throw new Error('cover: expected wok actively cooking or ready');
+  }
+  if (!world.state.hands.some(Boolean)) {
+    throw new Error('cover: expected held items in TANGAN');
+  }
   if (!world.state.plates.some((plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk))) {
     throw new Error('cover: ready plate does not match a live ticket');
   }
 }
 
 function stageStart(world) {
-  stepUntil(world, () => world.state.tickets.length >= 2, 12);
+  stepUntil(world, () => world.state.tickets.length >= 3, 22);
 }
 
 function stageRush(world) {
   const bot = new Bot(world);
   bot.waitFor(() => world.state.tickets.length >= 2, 14, 'two initial tickets');
-  bot.serveTicket(pickQuickTicket(bot));
-  bot.waitFor(() => world.state.tickets.length >= 3, 18, 'three tickets');
-  const platedTicket = plateNextWokDish(bot);
-  const drinkTicket = world.state.tickets.find((t) => DISHES[t.dishId].drink && t !== platedTicket);
-  let heldTicket = null;
-  if (drinkTicket) {
-    bot.use('dispenser', null, null, 'pour esteh for rush combo');
+  const platedTicket = plateQuickWokDish(bot);
+  bot.waitFor(() => world.state.tickets.length >= 3, 20, 'three tickets for rush');
+  const drinkTickets = bot.state.tickets.filter((t) => DISHES[t.dishId].drink && t !== platedTicket);
+  const heldTicket = drinkTickets[drinkTickets.length - 1] || null;
+  const quickOpener =
+    drinkTickets.length >= 2
+      ? drinkTickets[0]
+      : bot.state.tickets.find((t) => t !== platedTicket && t !== heldTicket && !DISHES[t.dishId].drink && !DISHES[t.dishId].wok.some((id) => id.endsWith('_c')));
+  if (quickOpener && heldTicket) bot.serveTicket(quickOpener);
+  if (heldTicket && bot.state.tickets.includes(heldTicket)) {
+    bot.use('dispenser', null, null, 'pour esteh for rush peak');
     bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 4, 'esteh poured');
-    heldTicket = drinkTicket;
   }
-  stageActionPeak(bot, platedTicket, heldTicket);
-  bot.waitFor(() => world.state.tickets.length >= 4, 12, 'four tickets');
+  const activeHeld = heldTicket && bot.state.tickets.includes(heldTicket) ? heldTicket : null;
+  stageActionPeak(bot, platedTicket, activeHeld, 'cabai', ['nasi', 'kerupuk']);
   const hasMatchingPlate = world.state.plates.some(
     (plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk),
   );
   if (!hasMatchingPlate) {
     throw new Error('rush: ready plate does not match a live ticket');
   }
+  if ((!world.state.wok.cooking && !world.state.wok.ready) || !world.state.hands.some(Boolean)) {
+    throw new Error('rush: expected active wok and TANGAN items');
+  }
 }
 
 function stageEnd(world) {
   const bot = new Bot(world);
-  bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
-  bot.serveTicket(oldestTicket(bot));
-  bot.waitFor(() => world.state.tickets.length >= 1, 12, 'second ticket for end');
-  bot.serveTicket(oldestTicket(bot));
-  stepUntil(world, () => world.state.overReason !== null, 200);
+  while (world.state.servedToday < world.state.quota && world.state.overReason === null) {
+    if (world.state.tickets.length === 0) {
+      bot.waitFor(() => world.state.tickets.length >= 1, 14, 'next ticket for shift clear');
+    }
+    const target = pickQuickTicket(bot) || oldestTicket(bot);
+    if (!target) break;
+    bot.serveTicket(target);
+  }
+  if (world.state.servedToday < world.state.quota) {
+    throw new Error(`end: failed to clear day (${world.state.servedToday}/${world.state.quota})`);
+  }
   world.state.floats = [];
 }
 
@@ -307,6 +380,7 @@ export function describeState(world) {
     time: Math.round(state.time * 10) / 10,
     timeLeft: Math.round(state.timeLeft),
     coins: state.coins,
+    combo: state.combo,
     served: state.served,
     servedToday: state.servedToday,
     failsToday: state.failsToday,
@@ -322,24 +396,24 @@ export function describeState(world) {
 export function stageShot(name, seed = 1) {
   const random = createRandom(seed);
   const world = createWorld(random);
-  const day = name === 'rush' ? 3 : 1;
+  const day = name === 'cover' || name === 'start' ? 3 : name === 'rush' ? 2 : 1;
   try {
     world.reset(day);
     if (name === 'cover') {
       stageCover(world);
-      return { world, screen: 'play' };
+      return { world, screen: 'play', best: world.state.coins };
     }
     if (name === 'start') {
       stageStart(world);
-      return { world, screen: 'title' };
+      return { world, screen: 'title', best: 0 };
     }
     if (name === 'rush') {
       stageRush(world);
-      return { world, screen: 'play' };
+      return { world, screen: 'play', best: world.state.coins };
     }
     if (name === 'end') {
       stageEnd(world);
-      return { world, screen: 'over' };
+      return { world, screen: 'dayclear', best: world.state.coins };
     }
   } catch (error) {
     // A failed stage must never leave a blank screenshot: fall back to a fresh
@@ -347,7 +421,7 @@ export function stageShot(name, seed = 1) {
     if (typeof window !== 'undefined') window.__shotError = String(error && error.message ? error.message : error);
     world.reset(day);
     stepUntil(world, () => world.state.tickets.length >= 1, 10);
-    return { world, screen: 'play' };
+    return { world, screen: 'play', best: 0 };
   }
   throw new Error(`unknown shot: ${name}`);
 }

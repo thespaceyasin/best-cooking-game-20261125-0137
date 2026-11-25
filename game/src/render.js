@@ -2,7 +2,7 @@
 // playfield is scaled to fit the window and centred, the margin filled with the
 // backdrop colour. Every ingredient, dish, prop and station is drawn with canvas paths:
 // no image files, no network.
-import { BOARD, CHOPS_NEEDED, DISHES, INGREDIENTS, PALETTE, STATIONS, VIEW } from './config.js';
+import { BOARD, BURN_GRACE, CHOPS_NEEDED, DISHES, INGREDIENTS, PALETTE, STATIONS, VIEW } from './config.js';
 import { drawCustomerCounter } from './customers.js';
 import { drawIngredientIcon, drawKecapSplash, drawPlateIcon, drawPlateSteam, drawWokCookingDish } from './foodArt.js';
 import {
@@ -10,6 +10,7 @@ import {
   drawCounterConnectors,
   drawForegroundProps,
   drawKitchenMat,
+  drawNightBackdrop,
   drawStationShadows,
   drawWallProps,
   drawWarmFloor,
@@ -59,6 +60,12 @@ function drawFourPointStar(ctx, x, y, r) {
   ctx.quadraticCurveTo(x - r * 0.2, y + r * 0.2, x - r, y);
   ctx.quadraticCurveTo(x - r * 0.2, y - r * 0.2, x, y - r);
   ctx.closePath();
+  ctx.fill();
+}
+
+function drawStationBevel(ctx, x, y, w, h, r, frontColor = '#3f2010') {
+  roundRect(ctx, x, y + 4, w, h, r);
+  ctx.fillStyle = frontColor;
   ctx.fill();
 }
 
@@ -239,8 +246,20 @@ export function createRenderer(canvas) {
     }
   }
 
+  function drawActiveHighlight(st, state, radius = 10) {
+    if (!st.stand) return;
+    if (Math.hypot(state.cook.x - st.stand.x, state.cook.y - st.stand.y) > 50) return;
+    context.save();
+    roundRect(context, st.x - 3, st.y - 3, st.w + 6, st.h + 6, radius + 2);
+    context.strokeStyle = 'rgba(255, 216, 107, 0.85)';
+    context.lineWidth = 2.5;
+    context.stroke();
+    context.restore();
+  }
+
   function drawBins() {
     // Cohesive dark-teak prep bench backing behind the 8 ingredient bins.
+    drawStationBevel(context, 14, 162, 452, 100, 10);
     roundRect(context, 14, 162, 452, 100, 10);
     context.fillStyle = '#4f2b17';
     context.fill();
@@ -255,6 +274,7 @@ export function createRenderer(canvas) {
     text('BAHAN', 49, 165, 10, '#fff9ec', 'center', 800);
 
     for (const bin of STATIONS.bins) {
+      drawStationBevel(context, bin.x, bin.y, bin.w, bin.h, 8, '#3d2010');
       roundRect(context, bin.x, bin.y, bin.w, bin.h, 8);
       context.fillStyle = PALETTE.woodTop;
       context.fill();
@@ -263,8 +283,8 @@ export function createRenderer(canvas) {
       context.stroke();
 
       // Warm top inner highlight.
-      context.fillStyle = 'rgba(255, 240, 210, 0.16)';
-      context.fillRect(bin.x + 4, bin.y + 2, bin.w - 8, 3);
+      context.fillStyle = 'rgba(255, 240, 210, 0.2)';
+      context.fillRect(bin.x + 4, bin.y + 2, bin.w - 8, 2.5);
 
       // Ceramic bowl recess behind ingredient icon.
       circle(context, bin.x + 21, bin.y + bin.h / 2, 15);
@@ -286,13 +306,15 @@ export function createRenderer(canvas) {
 
   function drawTalenan(state) {
     const st = STATIONS.talenan;
-    // Outer teak counter frame.
+    // Outer teak counter frame with 2.5D front thickness.
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 9);
     roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = PALETTE.wood;
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
     context.lineWidth = 2.5;
     context.stroke();
+    drawActiveHighlight(st, state, 9);
 
     // Inner light-maple butcher block cutting surface.
     roundRect(context, st.x + 6, st.y + 22, st.w - 12, st.h - 28, 6);
@@ -363,13 +385,15 @@ export function createRenderer(canvas) {
     const st = STATIONS.wajan;
     const wok = state.wok;
 
-    // Full cast-iron and warm-espresso stove hearth panel.
+    // Full cast-iron and warm-espresso 2.5D stove hearth panel.
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 10, '#18120e');
     roundRect(context, st.x, st.y, st.w, st.h, 10);
     context.fillStyle = '#2d241f';
     context.fill();
     context.strokeStyle = '#7a4424';
     context.lineWidth = 2.5;
     context.stroke();
+    drawActiveHighlight(st, state, 10);
 
     // Dark top status strip.
     roundRect(context, st.x + 3, st.y + 3, st.w - 6, 24, 7);
@@ -416,41 +440,48 @@ export function createRenderer(canvas) {
     }
 
     // Cast-iron burner grate deck.
-    roundRect(context, st.x + 8, st.y + 76, st.w - 16, 22, 7);
+    roundRect(context, st.x + 8, st.y + 66, st.w - 16, 15, 5);
     context.fillStyle = PALETTE.steel;
     context.fill();
     context.strokeStyle = PALETTE.steelLight;
-    context.lineWidth = 1.5;
+    context.lineWidth = 1.2;
     context.stroke();
 
-    // Flame under the wok bowl + roaring wok-hei side flames while cooking/ready.
+    // Roaring wok-hei flames + blue gas inner core while cooking/ready.
     const flick = Math.sin(state.time * 12) * 3.5 + Math.sin(state.time * 25) * 2;
     if (wok.cooking || wok.ready) {
-      // Side wok-hei licks curling around the rim.
-      context.fillStyle = 'rgba(255, 140, 32, 0.82)';
+      // Side wok-hei licks curling dramatically around the rim.
+      context.fillStyle = 'rgba(255, 134, 24, 0.88)';
       context.beginPath();
-      context.moveTo(st.x + 36, st.y + 52);
-      context.quadraticCurveTo(st.x + 22, st.y + 34 + flick * 0.6, st.x + 42, st.y + 30 + flick * 0.4);
+      context.moveTo(st.x + 34, st.y + 52);
+      context.quadraticCurveTo(st.x + 17, st.y + 30 + flick * 0.6, st.x + 42, st.y + 27 + flick * 0.4);
       context.quadraticCurveTo(st.x + 38, st.y + 44, st.x + 48, st.y + 52);
       context.fill();
 
       context.beginPath();
-      context.moveTo(st.x + 188, st.y + 52);
-      context.quadraticCurveTo(st.x + 202, st.y + 34 - flick * 0.6, st.x + 182, st.y + 30 - flick * 0.4);
+      context.moveTo(st.x + 190, st.y + 52);
+      context.quadraticCurveTo(st.x + 207, st.y + 30 - flick * 0.6, st.x + 182, st.y + 27 - flick * 0.4);
       context.quadraticCurveTo(st.x + 186, st.y + 44, st.x + 176, st.y + 52);
       context.fill();
 
       context.fillStyle = PALETTE.flame;
       context.beginPath();
-      context.moveTo(st.x + 42, st.y + 82);
-      context.quadraticCurveTo(st.x + 112, st.y + 38 + flick, st.x + 186, st.y + 82);
-      context.quadraticCurveTo(st.x + 112, st.y + 70, st.x + 42, st.y + 82);
+      context.moveTo(st.x + 42, st.y + 74);
+      context.quadraticCurveTo(st.x + 112, st.y + 32 + flick, st.x + 186, st.y + 74);
+      context.quadraticCurveTo(st.x + 112, st.y + 64, st.x + 42, st.y + 74);
       context.fill();
       context.fillStyle = PALETTE.flameHot;
       context.beginPath();
-      context.moveTo(st.x + 74, st.y + 82);
-      context.quadraticCurveTo(st.x + 112, st.y + 54 + flick, st.x + 150, st.y + 82);
-      context.quadraticCurveTo(st.x + 112, st.y + 73, st.x + 74, st.y + 82);
+      context.moveTo(st.x + 70, st.y + 74);
+      context.quadraticCurveTo(st.x + 112, st.y + 46 + flick, st.x + 154, st.y + 74);
+      context.quadraticCurveTo(st.x + 112, st.y + 66, st.x + 70, st.y + 74);
+      context.fill();
+
+      // Blue-hot gas burner core.
+      context.fillStyle = 'rgba(116, 208, 255, 0.72)';
+      context.beginPath();
+      context.moveTo(st.x + 90, st.y + 74);
+      context.quadraticCurveTo(st.x + 112, st.y + 58 + flick * 0.4, st.x + 134, st.y + 74);
       context.fill();
     }
 
@@ -460,78 +491,133 @@ export function createRenderer(canvas) {
     context.lineWidth = 8;
     context.lineCap = 'round';
     context.beginPath();
-    context.moveTo(st.x + 182, st.y + 54);
-    context.lineTo(st.x + 210, st.y + 66);
+    context.moveTo(st.x + 182, st.y + 50);
+    context.lineTo(st.x + 214, st.y + 62);
     context.stroke();
     context.restore();
 
     // Cast-iron wok bowl.
     context.fillStyle = '#1b1e25';
-    ctxEllipse(st.x + 112, st.y + 52, 82, 22);
+    ctxEllipse(st.x + 112, st.y + 49, 82, 21);
     context.fillStyle = '#474f5e';
-    ctxEllipse(st.x + 112, st.y + 50, 76, 19);
+    ctxEllipse(st.x + 112, st.y + 47, 76, 18);
     context.fillStyle = wok.burnt ? '#201816' : '#282c36';
-    ctxEllipse(st.x + 112, st.y + 48, 68, 15);
+    ctxEllipse(st.x + 112, st.y + 45, 68, 14);
 
     // Rim specular highlight.
-    context.strokeStyle = 'rgba(255, 224, 175, 0.35)';
+    context.strokeStyle = 'rgba(255, 224, 175, 0.42)';
     context.lineWidth = 1.5;
     context.beginPath();
-    context.ellipse(st.x + 112, st.y + 48, 69, 15, 0, Math.PI * 1.1, Math.PI * 1.9);
+    context.ellipse(st.x + 112, st.y + 45, 69, 14, 0, Math.PI * 1.1, Math.PI * 1.9);
     context.stroke();
 
     // Contents inside wok: real sizzling stir-fry once cooking/ready/burnt, or raw prepped bits.
     if (wok.cooking || wok.ready || wok.burnt) {
-      drawWokCookingDish(context, wok.dishId, wok.progress, state.time, st.x + 112, st.y + 49, wok.burnt);
+      drawWokCookingDish(context, wok.dishId, wok.progress, state.time, st.x + 112, st.y + 46, wok.burnt);
     } else {
       wok.contents.forEach((id, index) => {
         const ix = st.x + 62 + index * 32;
-        const iy = st.y + 48;
+        const iy = st.y + 45;
         if (id === 'kecap') drawKecapSplash(context, ix, iy, 24);
         else drawIngredientIcon(context, id, ix, iy, 24);
       });
     }
 
-    // Vertical cooking progress gauge on the right side of the stove.
-    if (wok.cooking || wok.ready) {
-      const gx = st.x + st.w - 20;
-      const gy = st.y + 32;
-      const gh = 48;
-      roundRect(context, gx, gy, 12, gh, 6);
-      context.fillStyle = '#14171c';
-      context.fill();
-      context.strokeStyle = '#6c768a';
-      context.lineWidth = 1.2;
-      context.stroke();
+    // Clear 3-zone horizontal Doneness Gauge on the lower stove deck (Masak -> Angkat -> Gosong).
+    const gx = st.x + 14;
+    const gy = st.y + 84;
+    const gw = st.w - 28;
+    const gh = 13;
+    roundRect(context, gx, gy, gw, gh, 6);
+    context.fillStyle = '#14171c';
+    context.fill();
+    context.strokeStyle = '#5c6678';
+    context.lineWidth = 1.2;
+    context.stroke();
 
-      const frac = wok.ready ? 1 : Math.min(1, wok.progress);
-      const fillH = Math.max(8, (gh - 4) * frac);
-      roundRect(context, gx + 2, gy + gh - 2 - fillH, 8, fillH, 4);
-      context.fillStyle = wok.ready ? PALETTE.greenLight : PALETTE.flameHot;
+    // Zone markers: 0..72% cooking orange, 72..90% emerald/gold sweet spot, 90..100% burn red danger.
+    const sweetX = gx + gw * 0.72;
+    const burnX = gx + gw * 0.90;
+    context.fillStyle = 'rgba(47, 143, 89, 0.35)';
+    context.fillRect(sweetX, gy + 2, burnX - sweetX, gh - 4);
+    context.fillStyle = 'rgba(200, 75, 49, 0.38)';
+    context.fillRect(burnX, gy + 2, gx + gw - burnX - 2, gh - 4);
+
+    if (wok.cooking || wok.ready || wok.burnt) {
+      let totalFrac = 0;
+      let fillCol = PALETTE.flameHot;
+      if (wok.burnt) {
+        totalFrac = 1;
+        fillCol = '#ef4444';
+      } else if (wok.ready) {
+        const burnFrac = Math.min(1, wok.readyTimer / BURN_GRACE);
+        totalFrac = 0.72 + burnFrac * 0.28;
+        fillCol = burnFrac > 0.65 ? '#ef4444' : '#34d399';
+      } else {
+        totalFrac = Math.min(0.72, Math.max(0.08, wok.progress * 0.72));
+        fillCol = wok.progress > 0.7 ? PALETTE.flameHot : '#ff9824';
+      }
+      const fillW = Math.max(8, (gw - 4) * totalFrac);
+      roundRect(context, gx + 2, gy + 2, fillW, gh - 4, 4);
+      context.fillStyle = fillCol;
+      context.fill();
+
+      // Bright pointer tick at exact fill head.
+      context.fillStyle = '#ffffff';
+      roundRect(context, gx + fillW - 1, gy, 4, gh, 2);
       context.fill();
     }
+
+    // Sweet spot divider lines.
+    context.fillStyle = '#fff5d6';
+    context.fillRect(sweetX, gy + 1, 1.5, gh - 2);
+    context.fillRect(burnX, gy + 1, 1.5, gh - 2);
   }
 
   function drawDispenser(state) {
     const st = STATIONS.dispenser;
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 9, '#16323e');
     roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = '#2d5c6e';
     context.fill();
     context.strokeStyle = '#183744';
     context.lineWidth = 2.5;
     context.stroke();
+    drawActiveHighlight(st, state, 9);
 
     // Top inner frost panel.
-    roundRect(context, st.x + 6, st.y + 22, st.w - 12, st.h - 42, 6);
-    context.fillStyle = '#7bb8cf';
+    roundRect(context, st.x + 6, st.y + 21, st.w - 12, st.h - 38, 6);
+    context.fillStyle = '#8cc5db';
     context.fill();
 
-    text(st.label, st.x + 10, st.y + 17, 12, PALETTE.goldBright, 'left', 800);
-    drawIngredientIcon(context, 'teh', st.x + 34, st.y + 46, 32);
-    drawIngredientIcon(context, 'es', st.x + 76, st.y + 46, 26);
+    text(st.label, st.x + 10, st.y + 16, 12, PALETTE.goldBright, 'left', 800);
+
+    // Glass iced-tea urn barrel with steel lid, spigot, & ice cubes.
+    roundRect(context, st.x + 16, st.y + 27, 36, 33, 5);
+    context.fillStyle = '#a85212';
+    context.fill();
+    context.strokeStyle = '#fff6e4';
+    context.lineWidth = 1.5;
+    context.stroke();
+    // Lid & tea level highlight.
+    roundRect(context, st.x + 19, st.y + 23, 30, 6, 3);
+    context.fillStyle = '#3c4554';
+    context.fill();
+    context.fillStyle = 'rgba(255, 232, 180, 0.32)';
+    context.fillRect(st.x + 19, st.y + 30, 30, 7);
+    context.fillStyle = 'rgba(220, 246, 255, 0.65)';
+    context.fillRect(st.x + 21, st.y + 42, 7, 7);
+    context.fillRect(st.x + 38, st.y + 40, 7, 7);
+    // Brass spigot tap.
+    context.fillStyle = PALETTE.gold;
+    context.fillRect(st.x + 52, st.y + 44, 12, 4);
+    context.fillRect(st.x + 60, st.y + 44, 4, 8);
+
+    // Tall frosted glass ready beneath tap.
+    drawIngredientIcon(context, 'teh', st.x + 92, st.y + 46, 36);
 
     if (state.dispenser.pouring) {
-      bar(st.x + 100, st.y + 40, 28, 12, state.dispenser.progress, PALETTE.goldBright, 'rgba(20, 40, 50, 0.35)');
+      bar(st.x + 114, st.y + 36, 16, 24, state.dispenser.progress, PALETTE.goldBright, 'rgba(20, 40, 50, 0.35)');
       text('Menuang...', st.x + st.w / 2, st.y + 82, 10, '#fff8ea', 'center', 700);
     } else {
       text('Klik untuk tuang', st.x + st.w / 2, st.y + 82, 10, '#fff8ea', 'center', 700);
@@ -540,53 +626,62 @@ export function createRenderer(canvas) {
 
   function drawPiring(state) {
     const st = STATIONS.piring;
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 9);
     roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = PALETTE.woodTop;
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
     context.lineWidth = 2.5;
     context.stroke();
+    drawActiveHighlight(st, state, 9);
 
     // Top highlight strip.
-    context.fillStyle = 'rgba(255, 240, 210, 0.16)';
+    context.fillStyle = 'rgba(255, 240, 210, 0.18)';
     context.fillRect(st.x + 6, st.y + 3, st.w - 12, 3);
 
-    text(st.label, st.x + 10, st.y + 18, 12, PALETTE.goldBright, 'left', 800);
+    // Header pill tab perched cleanly at top-left edge so enlarged plates never overlap text.
+    roundRect(context, st.x + 10, st.y - 6, 56, 15, 4);
+    context.fillStyle = '#231711';
+    context.fill();
+    context.strokeStyle = '#c88b4b';
+    context.lineWidth = 1;
+    context.stroke();
+    text(st.label, st.x + 38, st.y + 5, 10, PALETTE.goldBright, 'center', 800);
 
     state.plates.forEach((plate, index) => {
       const cx = st.x + 54 + index * 92;
-      const cy = st.y + 47;
-      context.fillStyle = 'rgba(35, 23, 17, 0.22)';
-      circle(context, cx, cy + 3, 25);
+      const cy = st.y + 43;
+      context.fillStyle = 'rgba(35, 23, 17, 0.24)';
+      circle(context, cx, cy + 3, 28);
       context.fill();
 
       if (plate) {
         // Warm glow ring under ready plate.
-        const glow = context.createRadialGradient(cx, cy, 12, cx, cy, 34);
-        glow.addColorStop(0, 'rgba(255, 216, 107, 0.58)');
-        glow.addColorStop(1, 'rgba(255, 216, 107, 0)');
+        const glow = context.createRadialGradient(cx, cy, 14, cx, cy, 38);
+        glow.addColorStop(0, 'rgba(255, 218, 107, 0.72)');
+        glow.addColorStop(1, 'rgba(255, 218, 107, 0)');
         context.fillStyle = glow;
-        circle(context, cx, cy, 34);
+        circle(context, cx, cy, 38);
         context.fill();
 
-        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 50);
-        drawPlateSteam(context, cx + 6, cy - 15, state.time, 0.8);
+        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 58);
+        drawPlateSteam(context, cx + 6, cy - 22, state.time, 0.9);
 
         // High-contrast label pill cleanly below the plate.
         const shortName = DISHES[plate.dishId].short;
         const pw = Math.min(88, Math.max(58, shortName.length * 7 + 14));
-        roundRect(context, cx - pw / 2, st.y + 72, pw, 17, 5);
+        roundRect(context, cx - pw / 2, st.y + 73, pw, 16, 5);
         context.fillStyle = '#231711';
         context.fill();
         context.strokeStyle = PALETTE.goldBright;
         context.lineWidth = 1;
         context.stroke();
-        text(shortName, cx, st.y + 84, 10, '#fff9ec', 'center', 800);
+        text(shortName, cx, st.y + 85, 10, '#fff9ec', 'center', 800);
       } else {
         context.strokeStyle = 'rgba(255, 246, 224, 0.5)';
         context.lineWidth = 1.5;
         context.setLineDash([4, 4]);
-        circle(context, cx, cy, 23);
+        circle(context, cx, cy, 26);
         context.stroke();
         context.setLineDash([]);
       }
@@ -595,19 +690,28 @@ export function createRenderer(canvas) {
 
   function drawSaji(state) {
     const st = STATIONS.saji;
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 9);
     roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = '#9c562c';
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
     context.lineWidth = 2.5;
     context.stroke();
+    drawActiveHighlight(st, state, 9);
 
     // Terracotta service pass mat strip.
-    roundRect(context, st.x + 8, st.y + 22, st.w - 16, st.h - 40, 6);
+    roundRect(context, st.x + 8, st.y + 16, st.w - 16, st.h - 34, 6);
     context.fillStyle = '#b46b3c';
     context.fill();
 
-    text(st.label, st.x + 12, st.y + 18, 12, PALETTE.goldBright, 'left', 800);
+    // Header pill tab perched cleanly at top-left edge.
+    roundRect(context, st.x + 10, st.y - 6, 80, 15, 4);
+    context.fillStyle = '#231711';
+    context.fill();
+    context.strokeStyle = '#c88b4b';
+    context.lineWidth = 1;
+    context.stroke();
+    text(st.label, st.x + 50, st.y + 5, 10, PALETTE.goldBright, 'center', 800);
 
     // Polished brass service bell on wooden base.
     const bx = st.x + st.w - 36;
@@ -630,28 +734,28 @@ export function createRenderer(canvas) {
 
     state.serveSlots.forEach((slot, index) => {
       const cx = st.x + 90 + index * 130;
-      const cy = st.y + 48;
+      const cy = st.y + 46;
       if (slot.item) {
-        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 42);
+        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 48);
         else {
-          drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 52);
-          drawPlateSteam(context, cx, cy - 22, state.time, 0.85);
+          drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 62);
+          drawPlateSteam(context, cx, cy - 26, state.time, 0.9);
         }
-        circle(context, cx + 20, cy + 13, 10);
+        circle(context, cx + 22, cy + 14, 10.5);
         context.fillStyle = PALETTE.greenLight;
         context.fill();
         context.strokeStyle = '#ffffff';
         context.lineWidth = 2;
         context.beginPath();
-        context.moveTo(cx + 15, cy + 13);
-        context.lineTo(cx + 19, cy + 17);
-        context.lineTo(cx + 25, cy + 9);
+        context.moveTo(cx + 17, cy + 14);
+        context.lineTo(cx + 21, cy + 18);
+        context.lineTo(cx + 27, cy + 10);
         context.stroke();
       } else {
         context.strokeStyle = 'rgba(255, 246, 224, 0.55)';
         context.lineWidth = 1.5;
         context.setLineDash([4, 4]);
-        circle(context, cx, cy, 23);
+        circle(context, cx, cy, 26);
         context.stroke();
         context.setLineDash([]);
       }
@@ -662,6 +766,7 @@ export function createRenderer(canvas) {
 
   function drawTrash() {
     const st = STATIONS.trash;
+    drawStationBevel(context, st.x, st.y, st.w, st.h, 9, '#1b1f26');
     roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = '#363c48';
     context.fill();
@@ -770,7 +875,7 @@ export function createRenderer(canvas) {
     circle(context, cook.x, cook.y - 38 + bob, 7.5);
     context.fill();
 
-    // Rosy cheeks + eyes + smile.
+    // Rosy cheeks + eyes with catchlights + smile.
     context.fillStyle = 'rgba(217, 91, 67, 0.35)';
     circle(context, cook.x - 8, cook.y - 15 + bob, 2.8);
     context.fill();
@@ -778,9 +883,14 @@ export function createRenderer(canvas) {
     context.fill();
 
     context.fillStyle = PALETTE.ink;
-    circle(context, cook.x - 4.5 + cook.face * 1.5, cook.y - 20 + bob, 1.8);
+    circle(context, cook.x - 4.5 + cook.face * 1.5, cook.y - 20 + bob, 2.0);
     context.fill();
-    circle(context, cook.x + 4.5 + cook.face * 1.5, cook.y - 20 + bob, 1.8);
+    circle(context, cook.x + 4.5 + cook.face * 1.5, cook.y - 20 + bob, 2.0);
+    context.fill();
+    context.fillStyle = '#ffffff';
+    circle(context, cook.x - 5.1 + cook.face * 1.5, cook.y - 20.6 + bob, 0.65);
+    context.fill();
+    circle(context, cook.x + 3.9 + cook.face * 1.5, cook.y - 20.6 + bob, 0.65);
     context.fill();
 
     context.strokeStyle = PALETTE.ink;
@@ -789,12 +899,12 @@ export function createRenderer(canvas) {
     context.arc(cook.x + cook.face * 1.5, cook.y - 14 + bob, 3.8, 0.15 * Math.PI, 0.85 * Math.PI);
     context.stroke();
 
-    // Draw ONLY carried items neatly beside the cook (no empty white circles above head!).
+    // Draw ONLY carried items neatly beside the cook without overlapping counters below.
     const carried = state.hands.filter((item) => item !== null);
     carried.forEach((item, index) => {
       const offsets = [
-        [-27, 2],
-        [27, 2],
+        [-28, -9],
+        [28, -9],
         [0, -54],
       ];
       const [ox, oy] = offsets[index] || [0, -54];
@@ -966,10 +1076,15 @@ export function createRenderer(canvas) {
     text(coinsLabel(state.coins), 786, 34, 18, PALETTE.goldBright, 'left', 800);
 
     if (state.combo > 1) {
-      roundRect(context, 916, 13, 116, 30, 8);
+      roundRect(context, 906, 11, 134, 34, 9);
       context.fillStyle = PALETTE.terracotta;
       context.fill();
-      text(`COMBO x${(1 + Math.min(state.combo - 1, 10) * 0.1).toFixed(1)}`, 974, 33, 13, '#fff9ec', 'center', 800);
+      context.strokeStyle = PALETTE.goldBright;
+      context.lineWidth = 2;
+      context.stroke();
+      context.fillStyle = PALETTE.goldBright;
+      drawFourPointStar(context, 924, 28, 7);
+      text(`COMBO x${state.combo}`, 980, 33, 14, '#fff9ec', 'center', 900);
     }
 
     // Fails: 3 chilies.
@@ -1014,6 +1129,7 @@ export function createRenderer(canvas) {
 
     drawWarmFloor(context);
     drawKitchenMat(context);
+    drawNightBackdrop(context, state);
     drawWarungAwning(context);
     drawBoard(state);
     drawCounterConnectors(context);
@@ -1048,6 +1164,7 @@ export function createRenderer(canvas) {
       600,
     );
 
+    const displayBest = Math.max(best, state.coins);
     if (screen === SCREEN_TITLE) {
       drawTitleScreen(context, state, best);
     } else if (screen === SCREEN_PAUSED) {
@@ -1065,7 +1182,7 @@ export function createRenderer(canvas) {
           servedLabel: `${state.servedToday}/${state.quota}`,
           failed: state.failsToday,
           coins: state.coins,
-          best,
+          best: displayBest,
           stars,
           stamp: 'SELESAI!',
           stampColor: PALETTE.green,
@@ -1084,7 +1201,7 @@ export function createRenderer(canvas) {
           served: state.served,
           failed: state.failed,
           coins: state.coins,
-          best,
+          best: displayBest,
           stars,
           stamp: 'TUTUP',
           stampColor: PALETTE.terracotta,
@@ -1102,7 +1219,7 @@ export function createRenderer(canvas) {
           served: state.served,
           failed: state.failed,
           coins: state.coins,
-          best,
+          best: displayBest,
           stars,
           stamp: 'JUARA!',
           stampColor: PALETTE.green,

@@ -272,14 +272,34 @@ export function drawTitleScreen(ctx, state, best) {
   ctx.restore();
 }
 
-/** Render a cohesive carved-wood and parchment modal for paused, dayclear, game over, and win. */
-export function drawOverlayModal(ctx, title, lines, prompt, accent) {
+function drawStar5(ctx, cx, cy, outerR, innerR, filled) {
   ctx.save();
-  ctx.fillStyle = 'rgba(20, 11, 6, 0.62)';
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+    const px = cx + Math.cos(ang) * r;
+    const py = cy + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = filled ? PALETTE.goldBright : '#e4d0aa';
+  ctx.fill();
+  ctx.strokeStyle = filled ? '#a86714' : '#b89a6d';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Render a cohesive carved-wood and parchment modal for paused, dayclear, game over, and win. */
+export function drawOverlayModal(ctx, title, lines, prompt, accent, stats = null) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(20, 11, 6, 0.64)';
   ctx.fillRect(0, 0, VIEW.width, VIEW.height);
 
-  const width = 660;
-  const height = 186 + lines.length * 32;
+  const width = stats ? 700 : 660;
+  const height = stats ? 436 : 186 + lines.length * 32;
   const x = (VIEW.width - width) / 2;
   const y = (VIEW.height - height) / 2;
 
@@ -312,17 +332,115 @@ export function drawOverlayModal(ctx, title, lines, prompt, accent) {
   ctx.fillStyle = '#fffdf7';
   ctx.fillText(title, VIEW.width / 2, y + 63);
 
-  lines.forEach((line, index) => {
-    ctx.font = index === 0 ? '700 17px system-ui, -apple-system, "Segoe UI", sans-serif' : '600 16px system-ui, -apple-system, "Segoe UI", sans-serif';
+  if (stats) {
+    // 3-star warung shift rating row.
+    for (let s = 0; s < 3; s += 1) {
+      drawStar5(ctx, VIEW.width / 2 + (s - 1) * 58, y + 114, 21, 10, s < stats.stars);
+    }
+
+    // Reason / summary line.
+    ctx.font = '700 17px system-ui, -apple-system, "Segoe UI", sans-serif';
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(line, VIEW.width / 2, y + 114 + index * 32);
-  });
+    ctx.fillText(lines[0] || '', VIEW.width / 2, y + 158);
+
+    // 3 framed visual stat cards.
+    const cardW = 192;
+    const cardH = 114;
+    const gap = 18;
+    const startX = (VIEW.width - (3 * cardW + 2 * gap)) / 2;
+    const cardY = y + 178;
+
+    const cards = [
+      {
+        label: 'TERSAJI',
+        value: stats.servedLabel ?? String(stats.served),
+        color: PALETTE.green,
+        draw: (cx, cy) => drawPlateIcon(ctx, 'nasgor_spesial', true, cx, cy, 42),
+      },
+      {
+        label: 'GAGAL',
+        value: String(stats.failed),
+        color: PALETTE.terracotta,
+        draw: (cx, cy) => drawIngredientIcon(ctx, 'cabai', cx, cy, 34),
+      },
+      {
+        label: 'TOTAL KOIN',
+        value: `Rp${stats.coins.toLocaleString('id-ID')}`,
+        color: '#9c5d14',
+        draw: (cx, cy) => {
+          circle(ctx, cx, cy, 18);
+          ctx.fillStyle = PALETTE.gold;
+          ctx.fill();
+          ctx.strokeStyle = '#a86714';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.font = '900 13px system-ui, -apple-system, "Segoe UI", sans-serif';
+          ctx.fillStyle = PALETTE.ink;
+          ctx.fillText('Rp', cx, cy + 4);
+        },
+      },
+    ];
+
+    cards.forEach((card, idx) => {
+      const cx = startX + idx * (cardW + gap);
+      roundRect(ctx, cx, cardY, cardW, cardH, 10);
+      ctx.fillStyle = '#f5e4c3';
+      ctx.fill();
+      ctx.strokeStyle = '#d2a266';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      card.draw(cx + cardW / 2, cardY + 34);
+
+      ctx.font = '800 11px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = PALETTE.muted;
+      ctx.fillText(card.label, cx + cardW / 2, cardY + 72);
+
+      ctx.font = '900 22px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = card.color;
+      ctx.fillText(card.value, cx + cardW / 2, cardY + 100);
+    });
+
+    // Tilted warung rubber stamp seal on top right.
+    if (stats.stamp) {
+      ctx.save();
+      ctx.translate(x + width - 92, y + 124);
+      ctx.rotate(-0.2);
+      roundRect(ctx, -46, -18, 92, 36, 6);
+      ctx.fillStyle = 'rgba(255, 248, 234, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = stats.stampColor || accent;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.font = '900 16px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = stats.stampColor || accent;
+      ctx.fillText(stats.stamp, 0, 6);
+      ctx.restore();
+    }
+
+    // Best score badge.
+    roundRect(ctx, VIEW.width / 2 - 140, y + 308, 280, 32, 16);
+    ctx.fillStyle = '#edd8b2';
+    ctx.fill();
+    ctx.strokeStyle = '#c89b5a';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = '800 14px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillStyle = PALETTE.woodEdge;
+    ctx.fillText(`Skor Terbaik: Rp${stats.best.toLocaleString('id-ID')}`, VIEW.width / 2, y + 329);
+  } else {
+    lines.forEach((line, index) => {
+      ctx.font = index === 0 ? '700 17px system-ui, -apple-system, "Segoe UI", sans-serif' : '600 16px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(line, VIEW.width / 2, y + 114 + index * 32);
+    });
+  }
 
   // Action button pill at bottom.
   const btnW = 360;
-  const btnH = 42;
+  const btnH = 44;
   const btnX = (VIEW.width - btnW) / 2;
-  const btnY = y + height - 64;
+  const btnY = y + height - 68;
   roundRect(ctx, btnX, btnY, btnW, btnH, 10);
   ctx.fillStyle = accent;
   ctx.fill();
@@ -332,7 +450,7 @@ export function drawOverlayModal(ctx, title, lines, prompt, accent) {
 
   ctx.font = '800 15px system-ui, -apple-system, "Segoe UI", sans-serif';
   ctx.fillStyle = '#fffdf7';
-  ctx.fillText(prompt, VIEW.width / 2, btnY + 26);
+  ctx.fillText(prompt, VIEW.width / 2, btnY + 27);
 
   ctx.restore();
 }

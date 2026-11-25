@@ -3,9 +3,11 @@
 // backdrop colour. Every ingredient, dish, prop and station is drawn with canvas paths:
 // no image files, no network.
 import { BOARD, CHOPS_NEEDED, DISHES, INGREDIENTS, PALETTE, STATIONS, VIEW } from './config.js';
-import { drawIngredientIcon, drawPlateIcon } from './foodArt.js';
+import { drawCustomerCounter } from './customers.js';
+import { drawIngredientIcon, drawKecapSplash, drawPlateIcon, drawPlateSteam, drawWokCookingDish } from './foodArt.js';
 import {
   drawAmbientLighting,
+  drawCounterConnectors,
   drawForegroundProps,
   drawKitchenMat,
   drawStationShadows,
@@ -189,12 +191,24 @@ export function createRenderer(canvas) {
         context.lineWidth = 3;
         roundRect(context, x, y, slotW, 56, 7);
         context.stroke();
+      } else if (frac < 0.25) {
+        context.strokeStyle = flashing ? PALETTE.red : 'rgba(200, 75, 49, 0.55)';
+        context.lineWidth = 2.5;
+        roundRect(context, x, y, slotW, 56, 7);
+        context.stroke();
       }
 
       // Small terracotta clip pin at top center of each ticket.
       roundRect(context, x + slotW / 2 - 14, y - 3, 28, 6, 3);
       context.fillStyle = wokMatches ? PALETTE.greenLight : PALETTE.terracotta;
       context.fill();
+
+      if (frac < 0.25) {
+        circle(context, x + slotW - 14, y + 34, 8);
+        context.fillStyle = PALETTE.red;
+        context.fill();
+        text('!', x + slotW - 14, y + 38, 11, '#ffffff', 'center', 900);
+      }
 
       text(dish.short, x + 10, y + 18, 14, flashing ? PALETTE.red : PALETTE.ink, 'left', 800);
       text(`Rp${ticket.price.toLocaleString('id-ID')}`, x + slotW - 10, y + 18, 12, PALETTE.wood, 'right', 700);
@@ -409,9 +423,23 @@ export function createRenderer(canvas) {
     context.lineWidth = 1.5;
     context.stroke();
 
-    // Flame under the wok bowl.
+    // Flame under the wok bowl + roaring wok-hei side flames while cooking/ready.
     const flick = Math.sin(state.time * 12) * 3.5 + Math.sin(state.time * 25) * 2;
     if (wok.cooking || wok.ready) {
+      // Side wok-hei licks curling around the rim.
+      context.fillStyle = 'rgba(255, 140, 32, 0.82)';
+      context.beginPath();
+      context.moveTo(st.x + 36, st.y + 52);
+      context.quadraticCurveTo(st.x + 22, st.y + 34 + flick * 0.6, st.x + 42, st.y + 30 + flick * 0.4);
+      context.quadraticCurveTo(st.x + 38, st.y + 44, st.x + 48, st.y + 52);
+      context.fill();
+
+      context.beginPath();
+      context.moveTo(st.x + 188, st.y + 52);
+      context.quadraticCurveTo(st.x + 202, st.y + 34 - flick * 0.6, st.x + 182, st.y + 30 - flick * 0.4);
+      context.quadraticCurveTo(st.x + 186, st.y + 44, st.x + 176, st.y + 52);
+      context.fill();
+
       context.fillStyle = PALETTE.flame;
       context.beginPath();
       context.moveTo(st.x + 42, st.y + 82);
@@ -452,10 +480,17 @@ export function createRenderer(canvas) {
     context.ellipse(st.x + 112, st.y + 48, 69, 15, 0, Math.PI * 1.1, Math.PI * 1.9);
     context.stroke();
 
-    // Contents inside wok.
-    wok.contents.forEach((id, index) => {
-      drawIngredientIcon(context, id, st.x + 62 + index * 32, st.y + 48, 24);
-    });
+    // Contents inside wok: real sizzling stir-fry once cooking/ready/burnt, or raw prepped bits.
+    if (wok.cooking || wok.ready || wok.burnt) {
+      drawWokCookingDish(context, wok.dishId, wok.progress, state.time, st.x + 112, st.y + 49, wok.burnt);
+    } else {
+      wok.contents.forEach((id, index) => {
+        const ix = st.x + 62 + index * 32;
+        const iy = st.y + 48;
+        if (id === 'kecap') drawKecapSplash(context, ix, iy, 24);
+        else drawIngredientIcon(context, id, ix, iy, 24);
+      });
+    }
 
     // Vertical cooking progress gauge on the right side of the stove.
     if (wok.cooking || wok.ready) {
@@ -527,14 +562,15 @@ export function createRenderer(canvas) {
 
       if (plate) {
         // Warm glow ring under ready plate.
-        const glow = context.createRadialGradient(cx, cy, 12, cx, cy, 31);
-        glow.addColorStop(0, 'rgba(255, 216, 107, 0.5)');
+        const glow = context.createRadialGradient(cx, cy, 12, cx, cy, 34);
+        glow.addColorStop(0, 'rgba(255, 216, 107, 0.58)');
         glow.addColorStop(1, 'rgba(255, 216, 107, 0)');
         context.fillStyle = glow;
-        circle(context, cx, cy, 31);
+        circle(context, cx, cy, 34);
         context.fill();
 
-        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 46);
+        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 50);
+        drawPlateSteam(context, cx + 6, cy - 15, state.time, 0.8);
 
         // High-contrast label pill cleanly below the plate.
         const shortName = DISHES[plate.dishId].short;
@@ -596,17 +632,20 @@ export function createRenderer(canvas) {
       const cx = st.x + 90 + index * 130;
       const cy = st.y + 48;
       if (slot.item) {
-        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 38);
-        else drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 46);
-        circle(context, cx + 18, cy + 12, 9);
+        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 42);
+        else {
+          drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 52);
+          drawPlateSteam(context, cx, cy - 22, state.time, 0.85);
+        }
+        circle(context, cx + 20, cy + 13, 10);
         context.fillStyle = PALETTE.greenLight;
         context.fill();
         context.strokeStyle = '#ffffff';
         context.lineWidth = 2;
         context.beginPath();
-        context.moveTo(cx + 13, cy + 12);
-        context.lineTo(cx + 17, cy + 16);
-        context.lineTo(cx + 23, cy + 8);
+        context.moveTo(cx + 15, cy + 13);
+        context.lineTo(cx + 19, cy + 17);
+        context.lineTo(cx + 25, cy + 9);
         context.stroke();
       } else {
         context.strokeStyle = 'rgba(255, 246, 224, 0.55)';
@@ -649,7 +688,7 @@ export function createRenderer(canvas) {
     context.fillStyle = 'rgba(35, 23, 17, 0.24)';
     ctxEllipse(cook.x, cook.y + 21, 24, 8);
 
-    // Body: cream shirt + terracotta warung apron with outline.
+    // Body: cream shirt + terracotta warung apron with outline + sleeves & tool.
     context.fillStyle = PALETTE.cookShirt;
     roundRect(context, cook.x - 19, cook.y - 6 + bob, 38, 25, 10);
     context.fill();
@@ -657,11 +696,54 @@ export function createRenderer(canvas) {
     context.lineWidth = 1.8;
     context.stroke();
 
+    // Expressive arms/hands and wooden spatula or chopping knife.
+    const nearTalenan = Math.hypot(cook.x - STATIONS.talenan.stand.x, cook.y - STATIONS.talenan.stand.y) < 60;
+    context.fillStyle = PALETTE.cookSkin;
+    circle(context, cook.x - 21, cook.y + 8 + bob, 5);
+    context.fill();
+    context.stroke();
+    circle(context, cook.x + 21, cook.y + 8 + bob, 5);
+    context.fill();
+    context.stroke();
+
+    if (nearTalenan) {
+      // Chef cleaver held in right hand.
+      context.save();
+      context.translate(cook.x + 22, cook.y + 6 + bob);
+      context.rotate(state.talenanFlash > 0 ? -0.9 : -0.4);
+      context.fillStyle = '#dce3ec';
+      roundRect(context, -2, -16, 10, 14, 2);
+      context.fill();
+      context.strokeStyle = '#6e7b8b';
+      context.lineWidth = 1;
+      context.stroke();
+      context.fillStyle = '#472512';
+      context.fillRect(0, -3, 5, 7);
+      context.restore();
+    } else {
+      // Wooden warung sodet (spatula) in right hand.
+      context.save();
+      context.translate(cook.x + 22, cook.y + 7 + bob);
+      context.rotate(0.45);
+      context.fillStyle = '#b97a42';
+      context.fillRect(-1.5, -14, 3, 14);
+      roundRect(context, -4, -20, 8, 7, 1.5);
+      context.fill();
+      context.restore();
+    }
+
     context.fillStyle = PALETTE.cookApron;
     roundRect(context, cook.x - 13, cook.y - 1 + bob, 26, 20, 7);
     context.fill();
 
-    // Apron pocket accent.
+    // Red neckerchief & apron pocket accent.
+    context.fillStyle = '#ffd447';
+    context.beginPath();
+    context.moveTo(cook.x - 7, cook.y - 5 + bob);
+    context.lineTo(cook.x, cook.y + 3 + bob);
+    context.lineTo(cook.x + 7, cook.y - 5 + bob);
+    context.closePath();
+    context.fill();
     context.fillStyle = '#9a311c';
     roundRect(context, cook.x - 7, cook.y + 8 + bob, 14, 7, 2);
     context.fill();
@@ -733,10 +815,10 @@ export function createRenderer(canvas) {
   }
 
   function drawHandTray(state) {
-    // Clean 3-slot hand inventory tray anchored neatly in the bottom center corridor.
-    const tx = 532;
-    const ty = 640;
-    const tw = 216;
+    // Clean 3-slot hand inventory tray anchored cleanly between SAMPAH and BLEK KERUPUK.
+    const tx = 166;
+    const ty = 636;
+    const tw = 204;
     const th = 46;
     context.save();
     roundRect(context, tx + 2, ty + 3, tw, th, 10);
@@ -750,12 +832,12 @@ export function createRenderer(canvas) {
     context.lineWidth = 2;
     context.stroke();
 
-    text('TANGAN', tx + 34, ty + 27, 10, PALETTE.goldBright, 'center', 800);
+    text('TANGAN', tx + 32, ty + 27, 10, PALETTE.goldBright, 'center', 800);
 
     state.hands.forEach((item, index) => {
-      const sx = tx + 84 + index * 46;
+      const sx = tx + 80 + index * 44;
       const sy = ty + 23;
-      circle(context, sx, sy, 17);
+      circle(context, sx, sy, 16);
       context.fillStyle = item ? '#fff8ea' : 'rgba(255, 248, 234, 0.14)';
       context.fill();
       context.strokeStyle = item ? PALETTE.goldBright : 'rgba(255, 216, 107, 0.35)';
@@ -763,10 +845,10 @@ export function createRenderer(canvas) {
       context.stroke();
 
       if (!item) return;
-      if (item.kind === 'ing' || item.kind === 'chopped') drawIngredientIcon(context, item.id, sx, sy, 22);
-      else if (item.kind === 'cooked') drawPlateIcon(context, item.dishId, false, sx, sy, 26);
-      else if (item.kind === 'plate') drawPlateIcon(context, item.dishId, item.kerupuk, sx, sy, 26);
-      else if (item.kind === 'drink') drawIngredientIcon(context, 'teh', sx, sy, 24);
+      if (item.kind === 'ing' || item.kind === 'chopped') drawIngredientIcon(context, item.id, sx, sy, 20);
+      else if (item.kind === 'cooked') drawPlateIcon(context, item.dishId, false, sx, sy, 24);
+      else if (item.kind === 'plate') drawPlateIcon(context, item.dishId, item.kerupuk, sx, sy, 24);
+      else if (item.kind === 'drink') drawIngredientIcon(context, 'teh', sx, sy, 22);
     });
     context.restore();
   }
@@ -815,8 +897,9 @@ export function createRenderer(canvas) {
 
     if (showFloats) {
       for (const float of state.floats) {
-        context.globalAlpha = Math.max(0, Math.min(1, float.life));
-        shadowText(float.text, float.x, float.y, 20, float.color, 'center');
+        const denom = float.maxLife || 1.4;
+        context.globalAlpha = Math.max(0, Math.min(1, (float.life / denom) * 1.6));
+        shadowText(float.text, float.x, float.y, 22, float.color, 'center');
       }
       context.globalAlpha = 1;
     }
@@ -844,15 +927,27 @@ export function createRenderer(canvas) {
     text('WARUNG NASI GORENG', 16, 25, 20, PALETTE.goldBright, 'left', 800);
     text('RUSH HOUR', 16, 44, 11, '#f0d8b2', 'left', 700);
 
-    // Day & quota pill.
-    roundRect(context, 316, 11, 224, 34, 8);
+    // Day & quota pill with time-of-day icon (sun on Day 1-2, crescent moon on Day 3).
+    roundRect(context, 304, 11, 240, 34, 8);
     context.fillStyle = '#382419';
     context.fill();
     context.strokeStyle = '#6d4429';
     context.lineWidth = 1;
     context.stroke();
-    text(dayLabel(state.day) + '/3', 330, 34, 15, '#fff9ec', 'left', 800);
-    text(`Pesanan ${state.servedToday}/${state.quota}`, 426, 34, 14, '#f2dfc0', 'left', 700);
+    if (state.day >= 3) {
+      circle(context, 322, 28, 7);
+      context.fillStyle = PALETTE.goldBright;
+      context.fill();
+      circle(context, 325, 26, 6);
+      context.fillStyle = '#382419';
+      context.fill();
+    } else {
+      circle(context, 322, 28, 6.5);
+      context.fillStyle = state.day === 2 ? '#ff9442' : PALETTE.goldBright;
+      context.fill();
+    }
+    text(dayLabel(state.day) + '/3', 336, 34, 15, '#fff9ec', 'left', 800);
+    text(`Pesanan ${state.servedToday}/${state.quota}`, 430, 34, 14, '#f2dfc0', 'left', 700);
 
     // Shift timer bar & clock.
     const timeLeft = state.timeLeft;
@@ -921,6 +1016,7 @@ export function createRenderer(canvas) {
     drawKitchenMat(context);
     drawWarungAwning(context);
     drawBoard(state);
+    drawCounterConnectors(context);
     drawStationShadows(context);
     drawWallProps(context, state);
     drawForegroundProps(context);
@@ -932,6 +1028,7 @@ export function createRenderer(canvas) {
     drawSaji(state);
     drawTrash();
     drawHandTray(state);
+    drawCustomerCounter(context, state);
     drawCook(state);
     drawAmbientLighting(context, state);
     drawParticles(state, screen === SCREEN_PLAY);
@@ -956,43 +1053,60 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_PAUSED) {
       drawOverlayModal(context, 'JEDA', ['Warung sedang istirahat sejenak.'], 'SPASI / P UNTUK LANJUT', PALETTE.wood);
     } else if (screen === SCREEN_DAYCLEAR) {
+      const stars = state.failsToday === 0 ? 3 : state.failsToday === 1 ? 2 : 1;
       drawOverlayModal(
         context,
         `HARI ${state.day} SELESAI!`,
-        [
-          `Pesanan tersaji: ${state.servedToday}/${state.quota}`,
-          `Bonus sisa waktu: Rp${state.dayBonus.toLocaleString('id-ID')}`,
-          `Total koin: Rp${state.coins.toLocaleString('id-ID')}`,
-        ],
+        [`Bonus sisa waktu: Rp${state.dayBonus.toLocaleString('id-ID')}`],
         'KLIK UNTUK LANJUT KE HARI BERIKUTNYA',
         PALETTE.green,
+        {
+          served: state.servedToday,
+          servedLabel: `${state.servedToday}/${state.quota}`,
+          failed: state.failsToday,
+          coins: state.coins,
+          best,
+          stars,
+          stamp: 'SELESAI!',
+          stampColor: PALETTE.green,
+        },
       );
     } else if (screen === SCREEN_OVER) {
       const reason = state.overReason === 'time' ? 'Waktu shift habis sebelum kuota terpenuhi.' : 'Terlalu banyak pesanan gagal.';
+      const stars = state.served >= 6 ? 2 : state.served >= 2 ? 1 : 0;
       drawOverlayModal(
         context,
         'WARUNG TUTUP!',
-        [
-          reason,
-          `Pesanan tersaji: ${state.served}`,
-          `Pesanan gagal: ${state.failed}`,
-          `Koin: Rp${state.coins.toLocaleString('id-ID')}  |  Terbaik: Rp${best.toLocaleString('id-ID')}`,
-        ],
+        [reason],
         'TEKAN R / KLIK UNTUK MAIN LAGI',
         PALETTE.terracotta,
+        {
+          served: state.served,
+          failed: state.failed,
+          coins: state.coins,
+          best,
+          stars,
+          stamp: 'TUTUP',
+          stampColor: PALETTE.terracotta,
+        },
       );
     } else if (screen === SCREEN_WIN) {
+      const stars = state.failed === 0 ? 3 : state.failed <= 2 ? 2 : 1;
       drawOverlayModal(
         context,
         'JUARA WARUNG!',
-        [
-          'Tiga hari penuh terlewati, semua pelanggan pulang kenyang.',
-          `Pesanan tersaji: ${state.served}`,
-          `Pesanan gagal: ${state.failed}`,
-          `Koin: Rp${state.coins.toLocaleString('id-ID')}  |  Terbaik: Rp${best.toLocaleString('id-ID')}`,
-        ],
+        ['Tiga hari penuh terlewati, semua pelanggan pulang kenyang.'],
         'TEKAN R / KLIK UNTUK MAIN LAGI',
         PALETTE.green,
+        {
+          served: state.served,
+          failed: state.failed,
+          coins: state.coins,
+          best,
+          stars,
+          stamp: 'JUARA!',
+          stampColor: PALETTE.green,
+        },
       );
     }
   }

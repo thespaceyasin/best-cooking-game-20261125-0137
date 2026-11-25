@@ -165,8 +165,8 @@ function nextWokTicket(bot, excludeTicket = null) {
 }
 
 /** Cook a fresh live wok dish and leave it plated on the counter, ready to serve. */
-function plateNextWokDish(bot) {
-  const ticket = nextWokTicket(bot);
+function plateNextWokDish(bot, excludeTicket = null) {
+  const ticket = nextWokTicket(bot, excludeTicket);
   const dish = DISHES[ticket.dishId];
   for (const id of dish.wok) bot.addIngredientToWok(id);
   bot.waitFor(() => bot.state.wok.cooking || bot.state.wok.ready, 5, 'wok cooking');
@@ -180,33 +180,83 @@ function plateNextWokDish(bot) {
   return ticket;
 }
 
-/** Start the next wok dish so the wok is actively cooking with steam/sizzle AND the talenan shows mid-chop work. */
-function startNextDishPartially(bot, excludeTicket = null) {
-  const ticket = nextWokTicket(bot, excludeTicket);
+/** Pick the quickest live ticket (preferring drink, then no-chop wok dish) for fast combo serves. */
+function pickQuickTicket(bot, excludeTicket = null) {
+  const candidates = bot.state.tickets.filter((t) => t !== excludeTicket);
+  const drink = candidates.find((t) => DISHES[t.dishId].drink);
+  if (drink) return drink;
+  const noChop = candidates
+    .filter((t) => !DISHES[t.dishId].wok.some((id) => id.endsWith('_c')))
+    .sort((a, b) => b.patience - a.patience);
+  if (noChop.length > 0) return noChop[0];
+  return candidates.sort((a, b) => b.patience - a.patience)[0] || null;
+}
+
+/** Cook a fast live dish into the cook's hand so it can be served immediately in <1s during peak action. */
+function holdQuickPlate(bot, excludeTicket = null) {
+  const ticket = pickQuickTicket(bot, excludeTicket);
+  if (!ticket) return null;
   const dish = DISHES[ticket.dishId];
+  if (dish.drink) {
+    bot.use('dispenser', null, null, 'start pour');
+    bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 5, 'drink poured');
+    return ticket;
+  }
   for (const id of dish.wok) bot.addIngredientToWok(id);
-  bot.waitFor(() => bot.state.wok.cooking, 3, 'wok actively cooking');
-  // Put an ingredient on the cutting board and chop twice so CINCANG 2/3 and chop bits show live.
+  bot.waitFor(() => bot.state.wok.cooking || bot.state.wok.ready, 5, 'wok cooking for hand');
+  bot.waitFor(() => bot.state.wok.ready, 12, 'dish ready for hand');
+  bot.use('wajan', null, () => bot.handsHave((item) => item.kind === 'cooked'), 'take cooked for hand');
+  bot.use('piring', null, () => bot.state.plates.filter(Boolean).length >= 1, 'plate for hand');
+  if (ticket.extraKerupuk) {
+    bot.use('bin', 'kerupuk', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'kerupuk'), 'pick kerupuk for hand');
+    bot.use('piring', null, () => bot.state.plates.some((plate) => plate && plate.dishId === ticket.dishId && plate.kerupuk), 'add kerupuk for hand');
+  }
+  // Pick up the newly plated dish (slot 1 if slot 0 already holds platedTicket).
+  bot.use('piring', null, () => bot.handsHave((item) => item.kind === 'plate'), 'pick plate to hold');
+  return ticket;
+}
+
+/** Stage peak action: active wok cooking + quick serve (+Rp + COMBO) + active talenan chop. */
+function stageActionPeak(bot, platedTicket, heldTicket) {
+  // Prep ayam on talenan with 1 chop first.
   bot.use('bin', 'ayam', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'ayam'), 'pick ayam for chop');
   bot.use('talenan', null, () => bot.state.board.item && bot.state.board.item.id === 'ayam', 'place ayam on board');
-  for (let chop = 0; chop < 2; chop += 1) {
-    bot.use(
-      'talenan',
-      null,
-      () => bot.state.board.chops === chop + 1,
-      `chop ayam ${chop + 1}`,
-    );
+  bot.use('talenan', null, () => bot.state.board.chops === 1, 'chop ayam 1');
+
+  // Start a wok dish cooking so WAJAN is actively sizzling.
+  const cookTicket = nextWokTicket(bot, platedTicket);
+  const dish = DISHES[cookTicket.dishId];
+  for (const id of dish.wok) bot.addIngredientToWok(id);
+  bot.waitFor(() => bot.state.wok.cooking, 3, 'wok actively cooking');
+
+  // Serve the held dish if its ticket is still live -> triggers +Rp float, sparkles, serve slot & COMBO.
+  if (heldTicket && bot.state.tickets.includes(heldTicket)) {
+    bot.use('saji', null, () => !bot.state.tickets.includes(heldTicket), 'serve held dish for peak');
   }
-  // Step briefly so steam & sizzle particles rise visibly while talenanFlash & chop bits are still mid-air.
-  stepUntil(bot.world, () => false, 0.14);
+
+  // Land chop #2 on talenan so talenanFlash + chop bits + active wok steam all appear together.
+  if (bot.state.board.item && bot.state.board.item.kind === 'ing' && bot.state.board.chops < 2) {
+    bot.use('talenan', null, () => bot.state.board.chops === 2, 'chop ayam 2');
+  }
+  stepUntil(bot.world, () => false, 0.12);
 }
 
 function stageCover(world) {
   const bot = new Bot(world);
-  bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
-  bot.serveTicket(oldestTicket(bot));
+  bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets for cover');
+  const first = pickQuickTicket(bot);
+  bot.serveTicket(first);
+  bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets after first serve');
   const platedTicket = plateNextWokDish(bot);
-  startNextDishPartially(bot, platedTicket);
+  bot.waitFor(() => world.state.tickets.length >= 2, 16, 'two tickets before peak');
+  const drinkTicket = world.state.tickets.find((t) => DISHES[t.dishId].drink && t !== platedTicket);
+  let heldTicket = null;
+  if (drinkTicket) {
+    bot.use('dispenser', null, null, 'pour esteh for cover peak');
+    bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 4, 'esteh poured');
+    heldTicket = drinkTicket;
+  }
+  stageActionPeak(bot, platedTicket, heldTicket);
   if (!world.state.plates.some((plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk))) {
     throw new Error('cover: ready plate does not match a live ticket');
   }
@@ -217,15 +267,20 @@ function stageStart(world) {
 }
 
 function stageRush(world) {
-  // Day 3 rush: serve one order, wait for tickets to stack, plate a fresh live
-  // wok order so it stays valid on the 4-ticket board, and cook the next dish.
   const bot = new Bot(world);
-  bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
-  bot.serveTicket(oldestTicket(bot));
-  bot.waitFor(() => world.state.tickets.length >= 3, 20, 'three tickets');
+  bot.waitFor(() => world.state.tickets.length >= 2, 14, 'two initial tickets');
+  bot.serveTicket(pickQuickTicket(bot));
+  bot.waitFor(() => world.state.tickets.length >= 3, 18, 'three tickets');
   const platedTicket = plateNextWokDish(bot);
-  startNextDishPartially(bot, platedTicket);
-  bot.waitFor(() => world.state.tickets.length >= 4, 10, 'four tickets');
+  const drinkTicket = world.state.tickets.find((t) => DISHES[t.dishId].drink && t !== platedTicket);
+  let heldTicket = null;
+  if (drinkTicket) {
+    bot.use('dispenser', null, null, 'pour esteh for rush combo');
+    bot.waitFor(() => bot.handsHave((item) => item.kind === 'drink'), 4, 'esteh poured');
+    heldTicket = drinkTicket;
+  }
+  stageActionPeak(bot, platedTicket, heldTicket);
+  bot.waitFor(() => world.state.tickets.length >= 4, 12, 'four tickets');
   const hasMatchingPlate = world.state.plates.some(
     (plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk),
   );
@@ -237,6 +292,8 @@ function stageRush(world) {
 function stageEnd(world) {
   const bot = new Bot(world);
   bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
+  bot.serveTicket(oldestTicket(bot));
+  bot.waitFor(() => world.state.tickets.length >= 1, 12, 'second ticket for end');
   bot.serveTicket(oldestTicket(bot));
   stepUntil(world, () => world.state.overReason !== null, 200);
   world.state.floats = [];

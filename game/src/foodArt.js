@@ -311,13 +311,20 @@ export function drawPlateIcon(ctx, dishId, kerupuk, x, y, s) {
   ctx.stroke();
 
   ctx.strokeStyle = '#277a4b';
-  ctx.lineWidth = Math.max(1.5, s * 0.045);
+  ctx.lineWidth = Math.max(1.5, s * 0.05);
   circle(ctx, 0, 0, r * 0.8);
   ctx.stroke();
 
   ctx.fillStyle = '#f4ebd9';
   circle(ctx, 0, 0, r * 0.7);
   ctx.fill();
+
+  // Subtle rim highlight arc.
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+  ctx.lineWidth = Math.max(1, s * 0.035);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.9, -Math.PI * 0.85, -Math.PI * 0.35);
+  ctx.stroke();
 
   const dish = DISHES[dishId];
   const isMie = dishId.includes('mie');
@@ -437,5 +444,174 @@ export function drawPlateIcon(ctx, dishId, kerupuk, x, y, s) {
     drawIngredientIcon(ctx, 'kerupuk', r * 0.5, r * 0.44, s * 0.44);
   }
 
+  ctx.restore();
+}
+
+/** Draw a glossy kecap manis soy-sauce drizzle inside the wok before cooking starts. */
+export function drawKecapSplash(ctx, x, y, s) {
+  const r = s * 0.52;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#261207';
+  ctx.beginPath();
+  ctx.ellipse(0, 2, r * 0.9, r * 0.55, -0.18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#5c2d12';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 214, 150, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.25, -r * 0.05, r * 0.35, r * 0.14, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Draw realistic sizzling stir-fry inside the cast-iron wok while cooking, ready, or burnt. */
+export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
+  ctx.save();
+  const toss = burnt ? 0 : Math.sin(time * 22) * 1.4;
+  ctx.translate(x, y + toss);
+
+  if (burnt) {
+    ctx.fillStyle = '#1b1412';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 56, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c83b28';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-24, -2);
+    ctx.lineTo(-8, 3);
+    ctx.lineTo(12, -3);
+    ctx.lineTo(28, 2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  const p = Math.max(0, Math.min(1, progress || 0));
+  const id = dishId || 'nasgor';
+  const isMie = id.includes('mie');
+  const isSate = id.includes('sate');
+  const isPedas = id.includes('pedas');
+  const isSpesial = id.includes('spesial');
+
+  if (isSate) {
+    // Rich sizzling peanut/kecap glaze + 4 fanned bamboo skewers.
+    ctx.fillStyle = '#8b431c';
+    ctx.beginPath();
+    ctx.ellipse(0, 1, 52, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let k = -1; k <= 2; k += 1) {
+      const sy = k * 5 - 3;
+      ctx.strokeStyle = '#e7c682';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-42, sy);
+      ctx.lineTo(38, sy);
+      ctx.stroke();
+      ctx.fillStyle = '#d46a32';
+      for (const cx of [-20, -4, 12]) {
+        roundRect(ctx, cx, sy - 3.5, 11, 7, 2.5);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = '#ab6bc0';
+    circle(ctx, -28, 5, 3);
+    ctx.fill();
+    circle(ctx, 24, -4, 3);
+    ctx.fill();
+  } else if (isMie) {
+    // Tangled golden/amber wok-tossed noodle ribbons + sawi + egg bits.
+    ctx.fillStyle = isPedas ? '#c95a22' : '#d8992e';
+    ctx.beginPath();
+    ctx.ellipse(0, 1, 56, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = isPedas ? '#f28c38' : '#ffd55a';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    for (let row = -1; row <= 1; row += 1) {
+      ctx.beginPath();
+      ctx.moveTo(-42, row * 4);
+      ctx.bezierCurveTo(-18, row * 4 - 6, 18, row * 4 + 6, 42, row * 4);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2d8a4e';
+    for (const [gx, gy] of [[-24, -4], [14, -5], [-4, 5], [26, 3]]) {
+      circle(ctx, gx, gy, 3.5);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffe073';
+    circle(ctx, -10, -2, 3.5);
+    ctx.fill();
+    circle(ctx, 18, 1, 3);
+    ctx.fill();
+  } else {
+    // Nasi Goreng mound caramelizing from pale rice/soy to rich amber-gold.
+    const rCol = Math.round(238 - p * 22);
+    const gCol = Math.round(202 - p * 46);
+    const bCol = Math.round(138 - p * 74);
+    ctx.fillStyle = `rgb(${rCol}, ${gCol}, ${bCol})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 1, 56, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = isPedas ? '#d96f32' : '#e6a34a';
+    ctx.beginPath();
+    ctx.ellipse(-2, -1, 44, 9.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Scrambled egg flecks & green scallions.
+    ctx.fillStyle = '#ffd85c';
+    for (const [ex, ey] of [[-26, -3], [-6, -4], [16, -2], [28, 3], [-14, 4]]) {
+      circle(ctx, ex, ey, 3.2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#2e8b4e';
+    for (const [sx, sy] of [[-20, 2], [4, 3], [22, -4], [-34, 1]]) {
+      ctx.fillRect(sx, sy, 4.5, 2.5);
+    }
+    if (isSpesial) {
+      ctx.fillStyle = '#c85a2b';
+      for (const [ax, ay] of [[-12, -1], [10, 1], [0, -5]]) {
+        roundRect(ctx, ax, ay, 7, 5, 1.5);
+        ctx.fill();
+      }
+    }
+  }
+
+  if (isPedas) {
+    ctx.fillStyle = '#d42c1c';
+    for (const [cx, cy] of [[-22, -2], [8, -4], [24, 2], [-4, 5]]) {
+      circle(ctx, cx, cy, 2.8);
+      ctx.fill();
+    }
+  }
+
+  // Glossy oil sizzle sheen highlights.
+  ctx.fillStyle = 'rgba(255, 245, 210, 0.45)';
+  circle(ctx, -16 + Math.sin(time * 15) * 4, -4, 2);
+  ctx.fill();
+  circle(ctx, 12 + Math.cos(time * 13) * 4, 2, 1.8);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Delicate rising steam curls above a freshly plated hot dish. */
+export function drawPlateSteam(ctx, x, y, time, scale = 1) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 252, 240, 0.78)';
+  ctx.lineWidth = 2 * scale;
+  ctx.lineCap = 'round';
+  for (let i = -1; i <= 1; i += 1) {
+    const sx = x + i * 8 * scale;
+    const phase = time * 2.8 + i * 1.4;
+    const drift = Math.sin(phase) * 2.6 * scale;
+    ctx.beginPath();
+    ctx.moveTo(sx, y + 3 * scale);
+    ctx.quadraticCurveTo(sx + drift, y - 3 * scale, sx - drift * 0.6, y - 9 * scale);
+    ctx.stroke();
+  }
   ctx.restore();
 }

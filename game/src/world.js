@@ -150,8 +150,8 @@ export function createWorld(random) {
     reset(state.day + 1);
   }
 
-  function addFloat(x, y, text, color) {
-    state.floats.push({ x, y, text, color, life: 1.4 });
+  function addFloat(x, y, text, color, life = 1.4) {
+    state.floats.push({ x, y, text, color, life, maxLife: life });
     if (state.floats.length > 24) state.floats.shift();
   }
 
@@ -302,7 +302,7 @@ export function createWorld(random) {
       slot.timer = 1.5;
     }
     state.serveGlow = 1;
-    addFloat(900, 340, `+Rp${total.toLocaleString('id-ID')}`, '#1f6f43');
+    addFloat(900, 344, `+Rp${total.toLocaleString('id-ID')}`, '#8cff9e', 2.0);
     addParticles(900, 350, '#f2c94c', 14, 90);
     emitSparkles(900, 346, 12, '#ffd86b');
     return { total, perfect: Boolean(item.perfect) };

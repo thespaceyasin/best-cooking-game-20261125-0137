@@ -134,10 +134,10 @@ export function drawWarungAwning(ctx) {
 
 /** Braided pandan/batik woven runner mat in the central cook corridor. */
 export function drawKitchenMat(ctx) {
-  const mx = 276;
-  const my = 428;
-  const mw = 796;
-  const mh = 142;
+  const mx = 256;
+  const my = 424;
+  const mw = 836;
+  const mh = 120;
 
   ctx.save();
   // Ground shadow under mat.
@@ -446,12 +446,48 @@ function drawPottedPlant(ctx, cx, cy) {
   ctx.restore();
 }
 
-/** Cozy bottom-half props (supply crates, baskets, blek kerupuk, street dining counter, stools, plant). */
+/** Continuous dark-teak counter rails unifying top prep line and mid service island. */
+export function drawCounterConnectors(ctx) {
+  ctx.save();
+
+  // Top kitchen counter deck behind bins, talenan, wajan, and dispenser.
+  roundRect(ctx, 10, 159, 1098, 107, 12);
+  ctx.fillStyle = 'rgba(35, 23, 17, 0.22)';
+  ctx.fill();
+  roundRect(ctx, 10, 156, 1098, 107, 12);
+  ctx.fillStyle = '#5a341d';
+  ctx.fill();
+  ctx.strokeStyle = PALETTE.woodEdge;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Brushed-steel exhaust hood trim perched above WAJAN.
+  roundRect(ctx, 706, 152, 228, 14, 5);
+  ctx.fillStyle = '#4c5464';
+  ctx.fill();
+  ctx.strokeStyle = '#252a33';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Mid service island connecting PIRING and MEJA SAJI.
+  roundRect(ctx, 470, 297, 640, 102, 12);
+  ctx.fillStyle = 'rgba(35, 23, 17, 0.2)';
+  ctx.fill();
+  roundRect(ctx, 470, 294, 640, 102, 12);
+  ctx.fillStyle = '#653a20';
+  ctx.fill();
+  ctx.strokeStyle = PALETTE.woodEdge;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Cozy bottom-half props (left kendi & herbs, blek kerupuk, spice rack, potted pandan). */
 export function drawForegroundProps(ctx) {
   ctx.save();
 
-  // --- Left wall corner: terracotta kendi water jug & herb planter (x: 24..116, y: 446..556) ---
-  // Low wooden stand.
+  // --- Left wall corner: terracotta kendi water jug & herb planter (x: 18..104, y: 460..546) ---
   roundRect(ctx, 22, 466, 86, 86, 10);
   ctx.fillStyle = 'rgba(35, 23, 17, 0.2)';
   ctx.fill();
@@ -489,175 +525,13 @@ export function drawForegroundProps(ctx) {
     ctx.fill();
   }
 
-  // --- Bottom-left warung supply corner beside SAMPAH (x: 170..436, y: 598..686) ---
-  // Low wooden pallet/crate.
-  roundRect(ctx, 174, 622, 186, 62, 8);
-  ctx.fillStyle = 'rgba(35, 23, 17, 0.2)';
-  ctx.fill();
-  roundRect(ctx, 170, 616, 186, 62, 8);
-  ctx.fillStyle = PALETTE.wood;
-  ctx.fill();
-  ctx.strokeStyle = PALETTE.woodEdge;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  // Wood plank slats.
-  ctx.strokeStyle = 'rgba(71, 37, 18, 0.6)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(174, 636);
-  ctx.lineTo(352, 636);
-  ctx.moveTo(174, 656);
-  ctx.lineTo(352, 656);
-  ctx.stroke();
-
-  // Woven basket of fresh red chilies.
-  circle(ctx, 206, 638, 22);
-  ctx.fillStyle = '#c99352';
-  ctx.fill();
-  ctx.strokeStyle = '#7c5025';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  const chiliOffs = [
-    [-7, -5, -0.4],
-    [4, -7, 0.3],
-    [-4, 4, 0.2],
-    [7, 5, -0.5],
-    [0, -1, 0.6],
-  ];
-  for (const [ox, oy, rot] of chiliOffs) {
-    ctx.save();
-    ctx.translate(206 + ox, 638 + oy);
-    ctx.rotate(rot);
-    ctx.fillStyle = '#c83b28';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 7, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Woven basket of purple shallots & garlic.
-  circle(ctx, 260, 638, 20);
-  ctx.fillStyle = '#c99352';
-  ctx.fill();
-  ctx.strokeStyle = '#7c5025';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  const onionPos = [
-    [-6, -4, '#a66fb5'],
-    [5, -4, '#b884c7'],
-    [-3, 5, '#995da8'],
-    [6, 5, '#f2e8d0'],
-  ];
-  for (const [ox, oy, c] of onionPos) {
-    ctx.fillStyle = c;
-    circle(ctx, 260 + ox, 638 + oy, 5.5);
-    ctx.fill();
-  }
-
-  // Stacked classic Indonesian ayam-jago white ceramic bowls.
-  for (let b = 0; b < 3; b += 1) {
-    const bx = 316;
-    const by = 648 - b * 7;
-    ctx.fillStyle = '#fbf6ec';
-    ctx.beginPath();
-    ctx.ellipse(bx, by, 20, 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#2d7a4d';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-  }
-
-  // Iconic blue blek kerupuk tin right beside the crate.
-  drawBlekKerupuk(ctx, 372, 622);
-
-  // --- Bottom-right customer warung dining bar & stools (x: 840..1260, y: 580..688) ---
-  // Customer round wooden stools tucked in front of the dining bar.
-  for (const sx of [908, 1020]) {
-    ctx.fillStyle = 'rgba(35, 23, 17, 0.22)';
-    circle(ctx, sx + 2, 608, 20);
-    ctx.fill();
-    ctx.fillStyle = PALETTE.woodLight;
-    circle(ctx, sx, 604, 19);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.woodEdge;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(71, 37, 18, 0.35)';
-    ctx.lineWidth = 1;
-    circle(ctx, sx, 604, 12);
-    ctx.stroke();
-  }
-
-  // Customer dining table / bar counter along the bottom right.
-  roundRect(ctx, 848, 630, 326, 56, 10);
-  ctx.fillStyle = 'rgba(35, 23, 17, 0.22)';
-  ctx.fill();
-  roundRect(ctx, 844, 624, 326, 56, 10);
-  ctx.fillStyle = PALETTE.woodTop;
-  ctx.fill();
-  ctx.strokeStyle = PALETTE.woodEdge;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-
-  // Warm terracotta-and-cream batik table runner on the bar.
-  roundRect(ctx, 864, 632, 286, 40, 6);
-  ctx.fillStyle = PALETTE.terracotta;
-  ctx.fill();
-  ctx.strokeStyle = PALETTE.goldBright;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.fillStyle = PALETTE.creamWarm;
-  for (let dx = 882; dx <= 1132; dx += 36) {
-    ctx.beginPath();
-    ctx.moveTo(dx, 646);
-    ctx.lineTo(dx + 7, 652);
-    ctx.lineTo(dx, 658);
-    ctx.lineTo(dx - 7, 652);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // Condiment caddy: tissue box, sambal jar, kecap bottle, and spoon cup.
-  roundRect(ctx, 882, 637, 40, 26, 4);
-  ctx.fillStyle = '#fff9ee';
-  ctx.fill();
-  ctx.strokeStyle = '#c88b4b';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.fillStyle = '#d9d0be';
-  ctx.fillRect(892, 646, 20, 6);
-
-  // Sambal jar.
-  circle(ctx, 948, 650, 10);
-  ctx.fillStyle = '#a8291b';
-  ctx.fill();
-  ctx.strokeStyle = '#fff5e0';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Mini kecap bottle.
-  circle(ctx, 976, 650, 8);
-  ctx.fillStyle = '#28170b';
-  ctx.fill();
-  ctx.strokeStyle = '#f4b942';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Empty customer cup & saucer awaiting service.
-  circle(ctx, 1046, 650, 14);
-  ctx.fillStyle = '#fbf6ec';
-  ctx.fill();
-  ctx.strokeStyle = '#2d7a4d';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  circle(ctx, 1046, 650, 8);
-  ctx.fillStyle = '#d9b583';
-  ctx.fill();
+  // Iconic blue blek kerupuk tin perched cleanly beside the relocated TANGAN tray.
+  drawBlekKerupuk(ctx, 384, 622);
 
   // Lush terracotta potted plant in the bottom-right corner.
   drawPottedPlant(ctx, 1216, 642);
 
-  // Decorative hanging chili/garlic braid & framed spice rack on right wall margin (x: 1134..1254, y: 296..392).
+  // Decorative framed spice rack on right wall margin (x: 1126..1254, y: 296..388).
   roundRect(ctx, 1130, 300, 128, 92, 10);
   ctx.fillStyle = 'rgba(35, 23, 17, 0.16)';
   ctx.fill();
@@ -670,7 +544,6 @@ export function drawForegroundProps(ctx) {
   roundRect(ctx, 1134, 304, 112, 76, 6);
   ctx.fillStyle = '#3b2318';
   ctx.fill();
-  // Spice jars on shelf.
   const jarColors = ['#f4b942', '#c84b31', '#2f8f59', '#e5cba3'];
   for (let j = 0; j < 4; j += 1) {
     const jx = 1144 + j * 25;
@@ -693,36 +566,65 @@ export function drawForegroundProps(ctx) {
   ctx.restore();
 }
 
-/** Warm overhead wok glow, prep spotlights, and gentle warm edge vignette. */
+/** Day-driven atmospheric lighting: warm afternoon on Day 1, golden sunset on Day 2, dramatic night rush on Day 3. */
 export function drawAmbientLighting(ctx, state) {
   ctx.save();
-  // Warm wok fire & lantern glow centered over WAJAN (820, 215).
+  const day = state.day || 1;
   const active = state.wok.cooking || state.wok.ready;
-  const pulse = active ? 0.31 + Math.sin(state.time * 9) * 0.05 : 0.12;
-  const wokGlow = ctx.createRadialGradient(820, 218, 22, 820, 224, active ? 250 : 180);
+
+  if (day >= 3) {
+    // Night rush hour twilight veil so lanterns, customers, and wok-hei flames pop dramatically.
+    ctx.fillStyle = 'rgba(18, 12, 28, 0.18)';
+    ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+
+    // Warm overhead lantern pools across kitchen & customer counter.
+    for (const [lx, ly, rad] of [[472, 200, 170], [820, 210, 230], [1110, 200, 160], [660, 600, 240], [960, 600, 240]]) {
+      const halo = ctx.createRadialGradient(lx, ly, 18, lx, ly, rad);
+      halo.addColorStop(0, 'rgba(255, 212, 108, 0.24)');
+      halo.addColorStop(1, 'rgba(255, 160, 60, 0)');
+      ctx.fillStyle = halo;
+      circle(ctx, lx, ly, rad);
+      ctx.fill();
+    }
+  } else if (day === 2) {
+    ctx.fillStyle = 'rgba(255, 145, 55, 0.07)';
+    ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+  } else {
+    // Day 1 golden afternoon warm sunbeam from upper-left.
+    const sun = ctx.createLinearGradient(0, 56, 760, 520);
+    sun.addColorStop(0, 'rgba(255, 240, 190, 0.14)');
+    sun.addColorStop(1, 'rgba(255, 240, 190, 0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+  }
+
+  // Warm wok fire & lantern glow centered over WAJAN (820, 215).
+  const basePulse = day >= 3 ? 0.42 : 0.30;
+  const pulse = active ? basePulse + Math.sin(state.time * 9) * 0.05 : 0.13;
+  const wokGlow = ctx.createRadialGradient(820, 218, 22, 820, 224, active ? (day >= 3 ? 280 : 245) : 180);
   wokGlow.addColorStop(0, `rgba(255, 198, 82, ${pulse})`);
-  wokGlow.addColorStop(0.5, `rgba(255, 128, 38, ${pulse * 0.5})`);
+  wokGlow.addColorStop(0.5, `rgba(255, 128, 38, ${pulse * 0.52})`);
   glowStopZero(wokGlow, 'rgba(255, 128, 38, 0)');
   ctx.fillStyle = wokGlow;
-  ctx.fillRect(550, 140, 540, 300);
+  ctx.fillRect(520, 130, 600, 340);
 
   // Subtle warm pool over TALENAN & MEJA SAJI.
   const prepGlow = ctx.createRadialGradient(580, 212, 10, 580, 212, 130);
-  prepGlow.addColorStop(0, 'rgba(255, 228, 165, 0.11)');
+  prepGlow.addColorStop(0, 'rgba(255, 228, 165, 0.12)');
   prepGlow.addColorStop(1, 'rgba(255, 228, 165, 0)');
   ctx.fillStyle = prepGlow;
   ctx.fillRect(440, 140, 280, 200);
 
-  const sajiGlow = ctx.createRadialGradient(900, 346, 15, 900, 346, 200);
-  sajiGlow.addColorStop(0, state.serveGlow > 0 ? 'rgba(255, 224, 120, 0.28)' : 'rgba(255, 224, 150, 0.09)');
+  const sajiGlow = ctx.createRadialGradient(900, 346, 15, 900, 346, 210);
+  sajiGlow.addColorStop(0, state.serveGlow > 0 ? 'rgba(255, 224, 120, 0.34)' : 'rgba(255, 224, 150, 0.1)');
   sajiGlow.addColorStop(1, 'rgba(255, 224, 150, 0)');
   ctx.fillStyle = sajiGlow;
   ctx.fillRect(690, 250, 420, 220);
 
-  // Gentle warm evening corner vignette (keeps center crisp and readable).
+  // Gentle warm corner vignette (stronger at night on Day 3).
   const vig = ctx.createRadialGradient(640, 360, 420, 640, 360, 820);
   vig.addColorStop(0, 'rgba(26, 16, 10, 0)');
-  vig.addColorStop(1, 'rgba(26, 16, 10, 0.24)');
+  vig.addColorStop(1, day >= 3 ? 'rgba(18, 10, 8, 0.36)' : 'rgba(26, 16, 10, 0.2)');
   ctx.fillStyle = vig;
   ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
   ctx.restore();

@@ -568,18 +568,18 @@ export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
     // Rich sizzling peanut/kecap glaze + 4 fanned bamboo skewers.
     ctx.fillStyle = '#8b431c';
     ctx.beginPath();
-    ctx.ellipse(0, 1, 52, 12, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 1, 56, 15, 0, 0, Math.PI * 2);
     ctx.fill();
     for (let k = -1; k <= 2; k += 1) {
       const sy = k * 5 - 3;
       ctx.strokeStyle = '#e7c682';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-42, sy);
-      ctx.lineTo(38, sy);
+      ctx.moveTo(-44, sy);
+      ctx.lineTo(40, sy);
       ctx.stroke();
       ctx.fillStyle = '#d46a32';
-      for (const cx of [-20, -4, 12]) {
+      for (const cx of [-22, -4, 14]) {
         roundRect(ctx, cx, sy - 3.5, 11, 7, 2.5);
         ctx.fill();
         ctx.fillStyle = '#5e2309';
@@ -588,15 +588,15 @@ export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
       }
     }
     ctx.fillStyle = '#ab6bc0';
-    circle(ctx, -28, 5, 3);
+    circle(ctx, -30, 5, 3);
     ctx.fill();
-    circle(ctx, 24, -4, 3);
+    circle(ctx, 26, -4, 3);
     ctx.fill();
   } else if (isMie) {
     // Tangled golden/amber wok-tossed noodle ribbons + sawi + egg bits.
     ctx.fillStyle = isPedas ? '#c95a22' : '#d8992e';
     ctx.beginPath();
-    ctx.ellipse(0, 1, 56, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 1, 60, 15.5, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.strokeStyle = isPedas ? '#f28c38' : '#ffd55a';
@@ -604,8 +604,8 @@ export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
     ctx.lineCap = 'round';
     for (let row = -1; row <= 1; row += 1) {
       ctx.beginPath();
-      ctx.moveTo(-42, row * 4);
-      ctx.bezierCurveTo(-18, row * 4 - 6, 18, row * 4 + 6, 42, row * 4);
+      ctx.moveTo(-45, row * 4.5);
+      ctx.bezierCurveTo(-18, row * 4.5 - 6, 18, row * 4.5 + 6, 45, row * 4.5);
       ctx.stroke();
     }
     ctx.fillStyle = '#2d8a4e';
@@ -625,12 +625,12 @@ export function drawWokCookingDish(ctx, dishId, progress, time, x, y, burnt) {
     const bCol = Math.round(138 - p * 74);
     ctx.fillStyle = `rgb(${rCol}, ${gCol}, ${bCol})`;
     ctx.beginPath();
-    ctx.ellipse(0, 1, 56, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 1, 60, 15.5, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = isPedas ? '#d96f32' : '#e6a34a';
     ctx.beginPath();
-    ctx.ellipse(-2, -1, 44, 9.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(-2, -1, 48, 11.5, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Scrambled egg flecks & green scallions.

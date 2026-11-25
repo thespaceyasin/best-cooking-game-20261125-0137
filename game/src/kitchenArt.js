@@ -22,26 +22,203 @@ function tileHash(row, col) {
   return (n & 255) / 255;
 }
 
-/** Handmade warm terracotta/cream tiled floor with subtle variation, grout, and baseboard. */
-export function drawWarmFloor(ctx) {
-  // Upper wall behind the top counter row.
+function drawStreetWindow(ctx, x, y, w, h, day, time, hasMoon) {
+  ctx.save();
+  // Recessed outer timber frame + sill.
+  roundRect(ctx, x - 4, y - 4, w + 8, h + 8, 6);
+  ctx.fillStyle = '#3d2111';
+  ctx.fill();
+  ctx.strokeStyle = '#6f3e22';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.save();
+  roundRect(ctx, x, y, w, h, 4);
+  ctx.clip();
+
+  // Sky gradient by time of day.
+  const sky = ctx.createLinearGradient(0, y, 0, y + h);
+  if (day >= 3) {
+    sky.addColorStop(0, '#0f1430');
+    sky.addColorStop(0.55, '#221f48');
+    sky.addColorStop(1, '#472a40');
+  } else if (day === 2) {
+    sky.addColorStop(0, '#b94228');
+    sky.addColorStop(0.55, '#eb8434');
+    sky.addColorStop(1, '#ffd46e');
+  } else {
+    sky.addColorStop(0, '#7ab8cf');
+    sky.addColorStop(0.6, '#cbe3d8');
+    sky.addColorStop(1, '#f8e5b8');
+  }
+  ctx.fillStyle = sky;
+  ctx.fillRect(x, y, w, h);
+
+  if (day >= 3) {
+    // Deterministic twinkling stars + crescent moon on right window.
+    for (let sx = x + 16; sx < x + w - 16; sx += 29) {
+      const sy = y + 8 + ((sx * 37) % 34);
+      const tw = 0.55 + 0.45 * Math.sin(time * 2.2 + sx * 0.13);
+      ctx.fillStyle = `rgba(255, 240, 178, ${tw})`;
+      circle(ctx, sx, sy, (sx % 3 === 0) ? 1.8 : 1.1);
+      ctx.fill();
+    }
+    if (hasMoon) {
+      const mx = x + w - 42;
+      const my = y + 22;
+      ctx.fillStyle = '#ffe588';
+      circle(ctx, mx, my, 11);
+      ctx.fill();
+      ctx.fillStyle = '#18193b';
+      circle(ctx, mx + 4.5, my - 2.5, 9.5);
+      ctx.fill();
+    }
+  } else if (day === 2) {
+    // Glowing setting sun orb near street horizon.
+    const sunX = x + w * 0.72;
+    const sunY = y + h - 20;
+    const sunGlow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 44);
+    sunGlow.addColorStop(0, 'rgba(255, 245, 185, 0.95)');
+    sunGlow.addColorStop(0.4, 'rgba(255, 194, 82, 0.45)');
+    sunGlow.addColorStop(1, 'rgba(255, 140, 48, 0)');
+    ctx.fillStyle = sunGlow;
+    circle(ctx, sunX, sunY, 44);
+    ctx.fill();
+  } else {
+    // Soft daytime puffy clouds.
+    ctx.fillStyle = 'rgba(255, 253, 245, 0.78)';
+    for (const cx of [x + w * 0.25, x + w * 0.7]) {
+      circle(ctx, cx, y + 22, 11);
+      circle(ctx, cx + 12, y + 20, 14);
+      circle(ctx, cx + 25, y + 23, 10);
+      ctx.fill();
+    }
+  }
+
+  // Distant Indonesian shophouse / kampung rooftops & silhouettes.
+  ctx.fillStyle = day >= 3 ? '#1a1529' : day === 2 ? '#59291a' : '#7c5d49';
+  for (let rx = x; rx < x + w; rx += 74) {
+    const rh = 18 + ((rx * 13) % 14);
+    ctx.beginPath();
+    ctx.moveTo(rx, y + h);
+    ctx.lineTo(rx, y + h - rh);
+    ctx.lineTo(rx + 36, y + h - rh - 12);
+    ctx.lineTo(rx + 72, y + h - rh);
+    ctx.lineTo(rx + 72, y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Warm lit street windows at night & dusk.
+    if (day >= 2) {
+      ctx.fillStyle = day >= 3 ? '#ffb94d' : '#ffdf88';
+      ctx.fillRect(rx + 18, y + h - rh + 4, 9, 7);
+      ctx.fillRect(rx + 42, y + h - rh + 4, 9, 7);
+      ctx.fillStyle = day >= 3 ? '#1a1529' : '#59291a';
+    }
+  }
+
+  // Dark palm leaf silhouette on window corner.
+  ctx.fillStyle = day >= 3 ? '#121021' : day === 2 ? '#441e14' : '#35683d';
+  for (const ang of [-0.7, -0.35, 0.05]) {
+    ctx.save();
+    ctx.translate(x + w - 4, y + h - 8);
+    ctx.rotate(ang - Math.PI * 0.78);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(20, -6, 38, 2);
+    ctx.quadraticCurveTo(20, 4, 0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draped warm glowing festoon string lights (lampu hias warung).
+  const segs = Math.max(2, Math.round(w / 140));
+  const segW = w / segs;
+  for (let s = 0; s < segs; s += 1) {
+    const x0 = x + s * segW;
+    const x1 = x0 + segW;
+    ctx.strokeStyle = '#2d1a10';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x0, y + 6);
+    ctx.quadraticCurveTo((x0 + x1) / 2, y + 23, x1, y + 6);
+    ctx.stroke();
+
+    for (let b = 1; b <= 3; b += 1) {
+      const t = b / 4;
+      const bx = x0 + segW * t;
+      const sag = 4 * t * (1 - t);
+      const by = y + 6 + sag * 16 + 3;
+      const bAlpha = day >= 3 ? 0.58 : day === 2 ? 0.42 : 0.25;
+      const bGlow = ctx.createRadialGradient(bx, by, 1, bx, by, 13);
+      bGlow.addColorStop(0, `rgba(255, 224, 118, ${bAlpha})`);
+      bGlow.addColorStop(1, 'rgba(255, 190, 70, 0)');
+      ctx.fillStyle = bGlow;
+      circle(ctx, bx, by, 13);
+      ctx.fill();
+      ctx.fillStyle = '#ffe994';
+      circle(ctx, bx, by, 3.1);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // Vertical wooden window mullions + bright warm windowsill lip.
+  ctx.fillStyle = '#4a2917';
+  const divs = w > 500 ? 3 : 2;
+  for (let d = 1; d < divs; d += 1) {
+    ctx.fillRect(x + (w * d) / divs - 3, y, 6, h);
+  }
+  roundRect(ctx, x - 6, y + h, w + 12, 6, 2);
+  ctx.fillStyle = '#6f3e22';
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Street-front warung upper wall with open windows + handmade tiled kitchen floor. */
+export function drawWarmFloor(ctx, state = { day: 1, time: 0 }) {
+  const day = state.day || 1;
+  const time = state.time || 0;
+
+  // Timber-plaster upper warung wall behind windows.
   const wallGrad = ctx.createLinearGradient(0, 56, 0, 166);
-  wallGrad.addColorStop(0, PALETTE.wallShade);
-  wallGrad.addColorStop(0.55, PALETTE.wall);
+  wallGrad.addColorStop(0, '#c8a675');
+  wallGrad.addColorStop(0.55, '#dfc092');
   wallGrad.addColorStop(1, '#ecd3a9');
   ctx.fillStyle = wallGrad;
   ctx.fillRect(0, 56, VIEW.width, 110);
 
-  // Subtle vertical wood wainscoting slats on upper wall.
-  ctx.fillStyle = 'rgba(111, 69, 37, 0.09)';
-  for (let x = 12; x < VIEW.width; x += 44) {
-    ctx.fillRect(x, 56, 4, 108);
+  // Dark-teak horizontal lintel beam & vertical framing columns.
+  ctx.fillStyle = '#4a2917';
+  ctx.fillRect(0, 56, VIEW.width, 6);
+  for (const px of [14, 456, 1094, 1262]) {
+    ctx.fillRect(px, 56, 10, 106);
   }
-  // Horizontal terracotta/gold trim molding across upper wall.
-  ctx.fillStyle = 'rgba(200, 75, 49, 0.25)';
-  ctx.fillRect(0, 144, VIEW.width, 5);
-  ctx.fillStyle = 'rgba(244, 185, 66, 0.35)';
-  ctx.fillRect(0, 149, VIEW.width, 2);
+
+  // Two open street-front warung windows showing sky, stars/sun, rooftops & festoon lights.
+  drawStreetWindow(ctx, 36, 63, 408, 76, day, time, false);
+  drawStreetWindow(ctx, 480, 63, 602, 76, day, time, true);
+
+  // Cozy right alcove with hanging braided red chilies & garlic bulbs.
+  roundRect(ctx, 1114, 66, 140, 74, 6);
+  ctx.fillStyle = '#9a6842';
+  ctx.fill();
+  ctx.strokeStyle = '#4a2917';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  for (const [hx, col] of [[1148, '#cc2f1f'], [1184, '#f2e8cf'], [1220, '#cc2f1f']]) {
+    ctx.strokeStyle = '#4a2917';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(hx, 68);
+    ctx.lineTo(hx, 114);
+    ctx.stroke();
+    for (let k = 0; k < 4; k += 1) {
+      ctx.fillStyle = col;
+      circle(ctx, hx + (k % 2 === 0 ? -4 : 4), 80 + k * 9, 4.5);
+      ctx.fill();
+    }
+  }
 
   // Finer handmade terracotta/cream tiled floor below y=164 (48px tiles).
   const tile = 48;
@@ -63,12 +240,10 @@ export function drawWarmFloor(ctx) {
       ctx.fillStyle = baseColor;
       ctx.fillRect(x, y, tile, tile);
 
-      // Soft warm terracotta inlay on alternating tiles.
       if ((row + col) % 2 === 0 && h > 0.35) {
         ctx.fillStyle = 'rgba(200, 75, 49, 0.055)';
         ctx.fillRect(x + 4, y + 4, tile - 8, tile - 8);
       }
-      // Corner diamond accent on every 2x2 intersection.
       if (row % 2 === 0 && col % 2 === 0 && h > 0.45) {
         ctx.fillStyle = 'rgba(160, 72, 36, 0.1)';
         ctx.beginPath();
@@ -80,14 +255,12 @@ export function drawWarmFloor(ctx) {
         ctx.fill();
       }
 
-      // Subtle ceramic top-left bevel highlight & bottom-right shadow.
       ctx.fillStyle = 'rgba(255, 250, 238, 0.24)';
       ctx.fillRect(x + 1, y + 1, tile - 2, 1.5);
       ctx.fillRect(x + 1, y + 1, 1.5, tile - 2);
       ctx.fillStyle = 'rgba(110, 70, 35, 0.07)';
       ctx.fillRect(x + 1, y + tile - 2, tile - 2, 1.5);
 
-      // Tiny baked clay speckle on some tiles.
       if (h > 0.72) {
         ctx.fillStyle = 'rgba(130, 82, 44, 0.13)';
         circle(ctx, x + 12 + Math.floor(h * 22), y + 14 + Math.floor((h * 17) % 20), 1.6);
@@ -137,13 +310,13 @@ export function drawWarmFloor(ctx) {
   ctx.fillRect(468, 396, 646, 28);
 }
 
-/** Striped terracotta-and-cream warung awning rim along the upper service edge. */
+/** Bold striped terracotta-and-cream warung awning clearly perched above the counter line. */
 export function drawWarungAwning(ctx) {
-  const y = 150;
+  const y = 142;
   const stripeW = 32;
   ctx.save();
-  ctx.fillStyle = 'rgba(35, 23, 17, 0.22)';
-  ctx.fillRect(0, y + 12, VIEW.width, 6);
+  ctx.fillStyle = 'rgba(35, 23, 17, 0.24)';
+  ctx.fillRect(0, y + 13, VIEW.width, 7);
 
   for (let x = 0, idx = 0; x < VIEW.width; x += stripeW, idx += 1) {
     const isRed = idx % 2 === 0;
@@ -160,6 +333,8 @@ export function drawWarungAwning(ctx) {
     ctx.lineWidth = 1;
     ctx.stroke();
   }
+  ctx.fillStyle = '#4a2917';
+  ctx.fillRect(0, y - 3, VIEW.width, 4);
   ctx.restore();
 }
 
@@ -301,15 +476,15 @@ export function drawWallProps(ctx, state) {
 
   // Swaying bamboo hanging lanterns over the kitchen prep and wok areas.
   const lanterns = [
-    { x: 472, y: 150, r: 10 },
-    { x: 820, y: 150, r: 12 },
-    { x: 1110, y: 150, r: 10 },
+    { x: 472, y: 144, r: 9.5 },
+    { x: 820, y: 144, r: 10.5 },
+    { x: 1110, y: 144, r: 9.5 },
   ];
   for (let i = 0; i < lanterns.length; i += 1) {
     const l = lanterns[i];
     const sway = Math.sin(state.time * 1.1 + i * 1.4) * 2.5;
     const lx = l.x + sway;
-    const ly = l.y + 18;
+    const ly = l.y + 15;
     ctx.save();
     // Warm glow halo.
     const glow = ctx.createRadialGradient(lx, ly, 2, lx, ly, l.r * 3.2);
@@ -577,14 +752,14 @@ export function drawCounterConnectors(ctx) {
 export function drawForegroundProps(ctx) {
   ctx.save();
 
-  // --- Left prep stand: volcanic stone cobek sambal & woven herb basket (x: 18..112, y: 458..552) ---
-  roundRect(ctx, 20, 468, 92, 86, 10);
-  ctx.fillStyle = 'rgba(24, 14, 8, 0.26)';
+  // --- Right margin stand below BUMBU DAPUR: volcanic cobek sambal & herb bakul (x: 1126..1256, y: 416..504) ---
+  roundRect(ctx, 1128, 426, 128, 84, 10);
+  ctx.fillStyle = 'rgba(24, 14, 8, 0.24)';
   ctx.fill();
-  roundRect(ctx, 18, 464, 92, 86, 10);
+  roundRect(ctx, 1126, 422, 128, 84, 10);
   ctx.fillStyle = '#3f2010';
   ctx.fill();
-  roundRect(ctx, 18, 458, 92, 84, 10);
+  roundRect(ctx, 1126, 416, 128, 82, 10);
   ctx.fillStyle = PALETTE.woodTop;
   ctx.fill();
   ctx.strokeStyle = PALETTE.woodEdge;
@@ -592,21 +767,20 @@ export function drawForegroundProps(ctx) {
   ctx.stroke();
 
   // Volcanic stone cobek mortar filled with crushed red sambal + stone ulekan pestle.
-  circle(ctx, 45, 500, 18);
+  circle(ctx, 1160, 456, 18);
   ctx.fillStyle = '#4a4e57';
   ctx.fill();
   ctx.strokeStyle = '#262930';
   ctx.lineWidth = 2;
   ctx.stroke();
-  circle(ctx, 45, 500, 12.5);
+  circle(ctx, 1160, 456, 12.5);
   ctx.fillStyle = '#b92619';
   ctx.fill();
   ctx.fillStyle = '#e0502f';
-  circle(ctx, 42, 497, 4);
+  circle(ctx, 1157, 453, 4);
   ctx.fill();
-  // Stone ulekan resting across cobek.
   ctx.save();
-  ctx.translate(49, 503);
+  ctx.translate(1164, 459);
   ctx.rotate(-0.55);
   roundRect(ctx, -4, -14, 8, 22, 4);
   ctx.fillStyle = '#6c727f';
@@ -617,23 +791,23 @@ export function drawForegroundProps(ctx) {
   ctx.restore();
 
   // Woven bamboo bakul basket holding fresh chilies, shallots & green lime.
-  circle(ctx, 86, 502, 16);
+  circle(ctx, 1216, 458, 17);
   ctx.fillStyle = '#c88b45';
   ctx.fill();
   ctx.strokeStyle = '#73441b';
   ctx.lineWidth = 1.8;
   ctx.stroke();
-  circle(ctx, 86, 502, 12);
+  circle(ctx, 1216, 458, 12.5);
   ctx.fillStyle = '#996028';
   ctx.fill();
   ctx.fillStyle = '#2f8f4b';
-  circle(ctx, 82, 498, 5);
+  circle(ctx, 1212, 454, 5);
   ctx.fill();
   ctx.fillStyle = '#cc2f1f';
-  circle(ctx, 90, 501, 4.5);
+  circle(ctx, 1220, 457, 4.5);
   ctx.fill();
   ctx.fillStyle = '#a465b5';
-  circle(ctx, 84, 507, 4.5);
+  circle(ctx, 1214, 463, 4.5);
   ctx.fill();
 
   // Iconic blue blek kerupuk tin perched cleanly beside the relocated TANGAN tray.
@@ -738,17 +912,17 @@ export function drawAmbientLighting(ctx, state) {
   if (day >= 3) {
     // Warm golden-amber pools cast beneath hanging lanterns, service pass & street-side diners.
     for (const [lx, ly, rad, alpha] of [
-      [472, 204, 175, 0.28],
-      [820, 215, 250, 0.34],
-      [1110, 204, 170, 0.26],
-      [760, 352, 220, 0.2],
-      [560, 608, 220, 0.24],
-      [810, 608, 240, 0.24],
-      [1040, 608, 210, 0.22],
+      [472, 198, 165, 0.22],
+      [820, 225, 210, 0.2],
+      [1110, 198, 160, 0.22],
+      [760, 352, 200, 0.16],
+      [560, 608, 220, 0.22],
+      [810, 608, 240, 0.22],
+      [1040, 608, 210, 0.2],
     ]) {
       const halo = ctx.createRadialGradient(lx, ly, 16, lx, ly, rad);
       halo.addColorStop(0, `rgba(255, 210, 98, ${alpha})`);
-      halo.addColorStop(0.55, `rgba(255, 154, 52, ${alpha * 0.4})`);
+      halo.addColorStop(0.55, `rgba(255, 154, 52, ${alpha * 0.35})`);
       halo.addColorStop(1, 'rgba(255, 140, 40, 0)');
       ctx.fillStyle = halo;
       circle(ctx, lx, ly, rad);
@@ -756,30 +930,30 @@ export function drawAmbientLighting(ctx, state) {
     }
   } else if (day === 2) {
     // Unmistakable Golden Sunset (Sore) oblique warm amber rays from upper-left.
-    const sunset = ctx.createLinearGradient(0, 56, 1120, 680);
-    sunset.addColorStop(0, 'rgba(255, 168, 64, 0.24)');
-    sunset.addColorStop(0.55, 'rgba(232, 112, 46, 0.14)');
-    sunset.addColorStop(1, 'rgba(72, 28, 38, 0.18)');
+    const sunset = ctx.createLinearGradient(0, 156, 1120, 680);
+    sunset.addColorStop(0, 'rgba(255, 168, 64, 0.22)');
+    sunset.addColorStop(0.55, 'rgba(232, 112, 46, 0.13)');
+    sunset.addColorStop(1, 'rgba(72, 28, 38, 0.16)');
     ctx.fillStyle = sunset;
-    ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+    ctx.fillRect(0, 156, VIEW.width, VIEW.height - 156);
   } else {
     // Day 1 bright afternoon sunbeam from upper-left.
-    const sun = ctx.createLinearGradient(0, 56, 760, 520);
-    sun.addColorStop(0, 'rgba(255, 244, 200, 0.16)');
+    const sun = ctx.createLinearGradient(0, 156, 760, 520);
+    sun.addColorStop(0, 'rgba(255, 244, 200, 0.14)');
     sun.addColorStop(1, 'rgba(255, 244, 200, 0)');
     ctx.fillStyle = sun;
-    ctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+    ctx.fillRect(0, 156, VIEW.width, VIEW.height - 156);
   }
 
-  // Warm wok fire & lantern glow centered over WAJAN (820, 215).
-  const basePulse = day >= 3 ? 0.48 : 0.32;
-  const pulse = active ? basePulse + Math.sin(state.time * 9) * 0.05 : 0.14;
-  const wokGlow = ctx.createRadialGradient(820, 218, 22, 820, 224, active ? (day >= 3 ? 300 : 250) : 180);
-  wokGlow.addColorStop(0, `rgba(255, 204, 88, ${pulse})`);
-  wokGlow.addColorStop(0.5, `rgba(255, 128, 38, ${pulse * 0.54})`);
-  glowStopZero(wokGlow, 'rgba(255, 128, 38, 0)');
+  // Subtle warm hearth light around WAJAN without washing out status pills or gauges.
+  const basePulse = day >= 3 ? 0.22 : 0.18;
+  const pulse = active ? basePulse + Math.sin(state.time * 9) * 0.03 : 0.08;
+  const wokGlow = ctx.createRadialGradient(814, 246, 18, 814, 246, active ? 215 : 150);
+  wokGlow.addColorStop(0, `rgba(255, 190, 72, ${pulse})`);
+  wokGlow.addColorStop(0.55, `rgba(255, 120, 34, ${pulse * 0.45})`);
+  glowStopZero(wokGlow, 'rgba(255, 120, 34, 0)');
   ctx.fillStyle = wokGlow;
-  ctx.fillRect(500, 120, 640, 360);
+  ctx.fillRect(580, 145, 470, 260);
 
   // Subtle warm pool over TALENAN & MEJA SAJI.
   const prepGlow = ctx.createRadialGradient(580, 212, 10, 580, 212, 130);

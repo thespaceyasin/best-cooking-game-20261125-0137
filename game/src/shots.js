@@ -133,10 +133,21 @@ function oldestTicket(bot) {
   return bot.state.tickets[0] || null;
 }
 
-/** Serve drink orders until the oldest ticket is a wok dish, then return it. */
-function nextWokTicket(bot) {
+/** Pick the live wok ticket with the most remaining patience, avoiding excludeTicket if possible. */
+function pickFreshWokTicket(bot, excludeTicket = null) {
+  const liveWok = bot.state.tickets
+    .filter((ticket) => !DISHES[ticket.dishId].drink && ticket !== excludeTicket)
+    .sort((a, b) => b.patience - a.patience);
+  if (liveWok.length > 0) return liveWok[0];
+  return bot.state.tickets.find((ticket) => !DISHES[ticket.dishId].drink) || null;
+}
+
+/** Serve drink orders until a wok ticket is on the board, then return the freshest one. */
+function nextWokTicket(bot, excludeTicket = null) {
   let guard = 0;
   while (guard < 6) {
+    const found = pickFreshWokTicket(bot, excludeTicket);
+    if (found) return found;
     const ticket = oldestTicket(bot);
     if (!ticket) {
       bot.waitFor(() => bot.state.tickets.length >= 1, 12, 'next ticket');
@@ -153,7 +164,7 @@ function nextWokTicket(bot) {
   throw new Error('bot: too many drinks in a row');
 }
 
-/** Cook the next wok dish and leave it plated on the counter, ready to serve. */
+/** Cook a fresh live wok dish and leave it plated on the counter, ready to serve. */
 function plateNextWokDish(bot) {
   const ticket = nextWokTicket(bot);
   const dish = DISHES[ticket.dishId];
@@ -166,53 +177,69 @@ function plateNextWokDish(bot) {
     bot.use('bin', 'kerupuk', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'kerupuk'), 'pick kerupuk');
     bot.use('piring', null, () => bot.state.plates.some((plate) => plate && plate.dishId === ticket.dishId && plate.kerupuk), 'add kerupuk');
   }
+  return ticket;
 }
 
-/** Start the following dish and stop mid-assembly: wok part-filled, a chopped
- *  ingredient waiting on the board (or the wok cooking, for a no-chop recipe). */
-function startNextDishPartially(bot) {
-  const ticket = nextWokTicket(bot);
+/** Start the next wok dish so the wok is actively cooking with steam/sizzle AND the talenan shows mid-chop work. */
+function startNextDishPartially(bot, excludeTicket = null) {
+  const ticket = nextWokTicket(bot, excludeTicket);
   const dish = DISHES[ticket.dishId];
-  const chopped = dish.wok.filter((id) => id.endsWith('_c'));
-  const plain = dish.wok.filter((id) => !id.endsWith('_c'));
-  for (const id of plain) bot.addIngredientToWok(id);
-  if (chopped.length > 0) {
-    bot.chopOnBoard(chopped[0].slice(0, -2));
-  } else {
-    // No chopping in this recipe, so the wok is already cooking: prep an ayam
-    // on the board anyway, so the talenan shows work in progress.
-    bot.chopOnBoard('ayam');
+  for (const id of dish.wok) bot.addIngredientToWok(id);
+  bot.waitFor(() => bot.state.wok.cooking, 3, 'wok actively cooking');
+  // Put an ingredient on the cutting board and chop twice so CINCANG 2/3 and chop bits show live.
+  bot.use('bin', 'ayam', () => bot.handsHave((item) => item.kind === 'ing' && item.id === 'ayam'), 'pick ayam for chop');
+  bot.use('talenan', null, () => bot.state.board.item && bot.state.board.item.id === 'ayam', 'place ayam on board');
+  for (let chop = 0; chop < 2; chop += 1) {
+    bot.use(
+      'talenan',
+      null,
+      () => bot.state.board.chops === chop + 1,
+      `chop ayam ${chop + 1}`,
+    );
   }
+  // Step briefly so steam & sizzle particles rise visibly while talenanFlash & chop bits are still mid-air.
+  stepUntil(bot.world, () => false, 0.14);
 }
 
 function stageCover(world) {
   const bot = new Bot(world);
   bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
   bot.serveTicket(oldestTicket(bot));
-  plateNextWokDish(bot);
-  startNextDishPartially(bot);
+  const platedTicket = plateNextWokDish(bot);
+  startNextDishPartially(bot, platedTicket);
+  if (!world.state.plates.some((plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk))) {
+    throw new Error('cover: ready plate does not match a live ticket');
+  }
 }
 
 function stageStart(world) {
-  stepUntil(world, () => world.state.tickets.length >= 1, 10);
-  stepUntil(world, () => world.state.time >= 5, 10);
+  stepUntil(world, () => world.state.tickets.length >= 2, 12);
 }
 
 function stageRush(world) {
-  // Day 3, same beats as the cover (serve one, plate one, start one), so the
-  // board is full at four tickets. Serving for a low clock does not work here:
-  // day 3 patience is only 32 s, and three expired orders end the day before
-  // the staging finishes, so the clock stays near 2:15 and the rush reads from
-  // the full board, not the timer.
+  // Day 3 rush: serve one order, wait for tickets to stack, plate a fresh live
+  // wok order so it stays valid on the 4-ticket board, and cook the next dish.
   const bot = new Bot(world);
   bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
   bot.serveTicket(oldestTicket(bot));
-  plateNextWokDish(bot);
-  startNextDishPartially(bot);
+  bot.waitFor(() => world.state.tickets.length >= 3, 20, 'three tickets');
+  const platedTicket = plateNextWokDish(bot);
+  startNextDishPartially(bot, platedTicket);
+  bot.waitFor(() => world.state.tickets.length >= 4, 10, 'four tickets');
+  const hasMatchingPlate = world.state.plates.some(
+    (plate) => plate && world.state.tickets.some((t) => t.dishId === plate.dishId && t.extraKerupuk === plate.kerupuk),
+  );
+  if (!hasMatchingPlate) {
+    throw new Error('rush: ready plate does not match a live ticket');
+  }
 }
 
 function stageEnd(world) {
+  const bot = new Bot(world);
+  bot.waitFor(() => world.state.tickets.length >= 1, 10, 'first ticket');
+  bot.serveTicket(oldestTicket(bot));
   stepUntil(world, () => world.state.overReason !== null, 200);
+  world.state.floats = [];
 }
 
 /** A one-line summary of a staged state, for the node test and debugging. */
@@ -247,7 +274,7 @@ export function stageShot(name, seed = 1) {
     }
     if (name === 'start') {
       stageStart(world);
-      return { world, screen: 'play' };
+      return { world, screen: 'title' };
     }
     if (name === 'rush') {
       stageRush(world);

@@ -1,9 +1,19 @@
 // Drawing only: the world's state and the current screen in, pixels out. The 1280x720
 // playfield is scaled to fit the window and centred, the margin filled with the
-// backdrop colour. Every ingredient, dish and station is drawn with canvas paths:
-// no image files, no network. Text that holds a number is rebuilt only when the
-// number changes, so a frame allocates nothing.
+// backdrop colour. Every ingredient, dish, prop and station is drawn with canvas paths:
+// no image files, no network.
 import { BOARD, CHOPS_NEEDED, DISHES, INGREDIENTS, PALETTE, STATIONS, VIEW } from './config.js';
+import { drawIngredientIcon, drawPlateIcon } from './foodArt.js';
+import {
+  drawAmbientLighting,
+  drawForegroundProps,
+  drawKitchenMat,
+  drawStationShadows,
+  drawWallProps,
+  drawWarmFloor,
+  drawWarungAwning,
+} from './kitchenArt.js';
+import { drawOverlayModal, drawTitleScreen } from './signboard.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -39,168 +49,15 @@ function baseId(id) {
   return id.endsWith('_c') ? id.slice(0, -2) : id;
 }
 
-/** One ingredient's glyph, centred at (x, y), about s pixels across. */
-export function drawIngredientIcon(ctx, id, x, y, s) {
-  const r = s / 2;
-  ctx.save();
-  ctx.translate(x, y);
-  if (id === 'nasi') {
-    ctx.fillStyle = '#e8e0c8';
-    ctx.beginPath();
-    ctx.ellipse(0, 2, r, r * 0.7, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fffdf5';
-    ctx.beginPath();
-    ctx.ellipse(0, -1, r * 0.8, r * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#d9cfae';
-    for (let i = 0; i < 5; i += 1) {
-      ctx.fillRect(-r * 0.5 + i * r * 0.25, -r * 0.3 + (i % 2) * r * 0.2, 2, 2);
-    }
-  } else if (id === 'mie') {
-    ctx.strokeStyle = '#f2c94c';
-    ctx.lineWidth = Math.max(2, s * 0.09);
-    ctx.lineCap = 'round';
-    for (let i = -1; i <= 1; i += 1) {
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.8, i * r * 0.45);
-      ctx.bezierCurveTo(-r * 0.3, i * r * 0.45 - r * 0.4, r * 0.3, i * r * 0.45 + r * 0.4, r * 0.8, i * r * 0.45);
-      ctx.stroke();
-    }
-  } else if (id === 'telur') {
-    ctx.fillStyle = '#fff8e1';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.85, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f2a93c';
-    circle(ctx, 0, r * 0.1, r * 0.42);
-    ctx.fill();
-  } else if (id === 'ayam') {
-    ctx.fillStyle = '#d97b4f';
-    circle(ctx, -r * 0.2, -r * 0.1, r * 0.62);
-    ctx.fill();
-    ctx.fillStyle = '#b85c33';
-    circle(ctx, -r * 0.35, -r * 0.25, r * 0.3);
-    ctx.fill();
-    ctx.strokeStyle = '#fff8e1';
-    ctx.lineWidth = Math.max(2, s * 0.1);
-    ctx.beginPath();
-    ctx.moveTo(r * 0.35, r * 0.35);
-    ctx.lineTo(r * 0.8, r * 0.8);
-    ctx.stroke();
-    ctx.fillStyle = '#fff8e1';
-    circle(ctx, r * 0.85, r * 0.85, r * 0.22);
-    ctx.fill();
-  } else if (id === 'ayam_c' || id === 'cabai_c' || id === 'bawang_c') {
-    const color = id === 'ayam_c' ? '#d97b4f' : id === 'cabai_c' ? '#c0392b' : '#b388c7';
-    ctx.fillStyle = color;
-    const offs = [
-      [-r * 0.45, -r * 0.3],
-      [r * 0.3, -r * 0.45],
-      [-r * 0.1, r * 0.3],
-      [r * 0.5, r * 0.35],
-    ];
-    for (const [ox, oy] of offs) ctx.fillRect(ox, oy, r * 0.55, r * 0.55);
-  } else if (id === 'kecap') {
-    ctx.fillStyle = '#2c1a0c';
-    roundRect(ctx, -r * 0.4, -r * 0.7, r * 0.8, r * 1.4, r * 0.2);
-    ctx.fill();
-    ctx.fillStyle = '#c0392b';
-    ctx.fillRect(-r * 0.4, -r * 0.15, r * 0.8, r * 0.5);
-    ctx.fillStyle = '#7a5a3a';
-    ctx.fillRect(-r * 0.25, -r, r * 0.5, r * 0.35);
-  } else if (id === 'cabai') {
-    ctx.fillStyle = '#c0392b';
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.7, -r * 0.5);
-    ctx.quadraticCurveTo(r * 0.2, -r, r * 0.75, r * 0.45);
-    ctx.quadraticCurveTo(r * 0.2, r * 0.75, -r * 0.55, r * 0.2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#2e7d32';
-    ctx.lineWidth = Math.max(2, s * 0.09);
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.7, -r * 0.5);
-    ctx.quadraticCurveTo(-r * 0.9, -r * 0.9, -r * 0.45, -r * 0.85);
-    ctx.stroke();
-  } else if (id === 'bawang') {
-    ctx.fillStyle = '#b388c7';
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.8);
-    ctx.quadraticCurveTo(r * 0.85, -r * 0.2, r * 0.55, r * 0.55);
-    ctx.quadraticCurveTo(0, r * 0.9, -r * 0.55, r * 0.55);
-    ctx.quadraticCurveTo(-r * 0.85, -r * 0.2, 0, -r * 0.8);
-    ctx.fill();
-    ctx.strokeStyle = '#2e7d32';
-    ctx.lineWidth = Math.max(2, s * 0.08);
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.8);
-    ctx.lineTo(0, -r * 1.15);
-    ctx.stroke();
-  } else if (id === 'kerupuk') {
-    ctx.fillStyle = '#f7d774';
-    circle(ctx, 0, 0, r * 0.9);
-    ctx.fill();
-    ctx.strokeStyle = '#e0a92e';
-    ctx.lineWidth = Math.max(1.5, s * 0.06);
-    circle(ctx, 0, 0, r * 0.55);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.6, -r * 0.2);
-    ctx.quadraticCurveTo(0, -r * 0.6, r * 0.6, -r * 0.2);
-    ctx.stroke();
-  } else if (id === 'teh') {
-    ctx.fillStyle = 'rgba(200, 120, 40, 0.9)';
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.55, -r * 0.7);
-    ctx.lineTo(r * 0.55, -r * 0.7);
-    ctx.lineTo(r * 0.4, r * 0.8);
-    ctx.lineTo(-r * 0.4, r * 0.8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#8a5a33';
-    ctx.lineWidth = Math.max(1.5, s * 0.06);
-    ctx.stroke();
-  } else if (id === 'es') {
-    ctx.fillStyle = '#a8d8f0';
-    ctx.fillRect(-r * 0.6, -r * 0.4, r * 0.55, r * 0.55);
-    ctx.fillRect(r * 0.05, r * 0.1, r * 0.55, r * 0.55);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillRect(-r * 0.45, -r * 0.25, r * 0.2, r * 0.2);
-  }
-  ctx.restore();
-}
-
-/** A plate carrying a dish, centred at (x, y), about s pixels across. */
-function drawPlateIcon(ctx, dishId, kerupuk, x, y, s) {
-  const r = s / 2;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.fillStyle = '#fdfdfd';
-  circle(ctx, 0, 0, r);
+function drawFourPointStar(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.quadraticCurveTo(x + r * 0.2, y - r * 0.2, x + r, y);
+  ctx.quadraticCurveTo(x + r * 0.2, y + r * 0.2, x, y + r);
+  ctx.quadraticCurveTo(x - r * 0.2, y + r * 0.2, x - r, y);
+  ctx.quadraticCurveTo(x - r * 0.2, y - r * 0.2, x, y - r);
+  ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = '#d9d9d9';
-  ctx.lineWidth = 1.5;
-  circle(ctx, 0, 0, r * 0.72);
-  ctx.stroke();
-  if (dishId === 'esteh') {
-    drawIngredientIcon(ctx, 'teh', 0, 0, s * 0.7);
-  } else {
-    const dish = DISHES[dishId];
-    const colors = { nasgor: '#e8a34c', miegor: '#f2c94c', sate: '#b85c33' };
-    const key = dishId.includes('mie') ? 'miegor' : dishId.includes('sate') ? 'sate' : 'nasgor';
-    ctx.fillStyle = colors[key];
-    ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.62, r * 0.48, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#2e7d32';
-    ctx.fillRect(-r * 0.3, -r * 0.45, r * 0.6, r * 0.14);
-    if (dish && dish.name.includes('PEDAS')) {
-      drawIngredientIcon(ctx, 'cabai', r * 0.3, -r * 0.25, s * 0.3);
-    }
-  }
-  if (kerupuk) drawIngredientIcon(ctx, 'kerupuk', r * 0.55, r * 0.45, s * 0.45);
-  ctx.restore();
 }
 
 function cachedLabel(prefix) {
@@ -221,7 +78,6 @@ export function createRenderer(canvas) {
   const fonts = new Map();
   const coinsLabel = cachedLabel('Rp ');
   const dayLabel = cachedLabel('HARI ');
-  const servedLabel = cachedLabel('');
 
   function resize() {
     const ratio = window.devicePixelRatio || 1;
@@ -247,15 +103,19 @@ export function createRenderer(canvas) {
   }
 
   function shadowText(value, x, y, size, color, align = 'left') {
-    context.font = `${700} ${size}px ${FONT}`;
+    const key = `800|${size}`;
+    if (!fonts.has(key)) fonts.set(key, `800 ${size}px ${FONT}`);
+    context.font = fonts.get(key);
     context.textAlign = align;
-    context.fillStyle = 'rgba(0,0,0,0.35)';
-    context.fillText(value, x + 2, y + 2);
+    context.textBaseline = 'alphabetic';
+    context.lineWidth = 4;
+    context.strokeStyle = 'rgba(26, 16, 10, 0.85)';
+    context.strokeText(value, x, y);
     context.fillStyle = color;
     context.fillText(value, x, y);
   }
 
-  function bar(x, y, w, h, frac, fill, back = 'rgba(0,0,0,0.25)') {
+  function bar(x, y, w, h, frac, fill, back = 'rgba(35, 23, 17, 0.22)') {
     roundRect(context, x, y, w, h, h / 2);
     context.fillStyle = back;
     context.fill();
@@ -267,60 +127,14 @@ export function createRenderer(canvas) {
   }
 
   function patienceColor(frac) {
-    if (frac > 0.5) return '#2e7d32';
-    if (frac > 0.25) return '#e0a92e';
-    return '#c0392b';
+    if (frac > 0.5) return PALETTE.greenLight;
+    if (frac > 0.25) return '#e69b24';
+    return PALETTE.red;
   }
 
-  function drawFloor(state) {
-    context.fillStyle = PALETTE.wall;
-    context.fillRect(0, 0, VIEW.width, 164);
-    context.fillStyle = PALETTE.wallTrim;
-    context.fillRect(0, 160, VIEW.width, 4);
-    for (let row = 0; row < 7; row += 1) {
-      for (let col = 0; col < 16; col += 1) {
-        context.fillStyle = (row + col) % 2 === 0 ? PALETTE.floorA : PALETTE.floorB;
-        context.fillRect(col * 80, 164 + row * 80, 80, 80);
-      }
-    }
-    context.strokeStyle = PALETTE.floorLine;
-    context.lineWidth = 1;
-    for (let col = 0; col <= 16; col += 1) {
-      context.beginPath();
-      context.moveTo(col * 80, 164);
-      context.lineTo(col * 80, 720);
-      context.stroke();
-    }
-    for (let row = 0; row <= 7; row += 1) {
-      context.beginPath();
-      context.moveTo(0, 164 + row * 80);
-      context.lineTo(1280, 164 + row * 80);
-      context.stroke();
-    }
-    // Wall decor: a menu poster and a hanging lamp.
-    context.fillStyle = '#fff8ea';
-    roundRect(context, 1120, 168, 144, 88, 8);
-    context.fill();
-    context.strokeStyle = PALETTE.wood;
-    context.lineWidth = 3;
-    roundRect(context, 1120, 168, 144, 88, 8);
-    context.stroke();
-    text('MENU', 1192, 192, 15, PALETTE.ticketRed, 'center');
-    text('NASGOR 12rb', 1192, 214, 12, PALETTE.ink, 'center', 600);
-    text('MIEGOR 12rb', 1192, 232, 12, PALETTE.ink, 'center', 600);
-    text('SATE 16rb', 1192, 250, 12, PALETTE.ink, 'center', 600);
-    const sway = Math.sin(state.time * 0.8) * 3;
-    context.strokeStyle = '#6f4525';
-    context.lineWidth = 3;
+  function ctxEllipse(x, y, rx, ry) {
     context.beginPath();
-    context.moveTo(640 + sway, 0);
-    context.lineTo(640 + sway, 26);
-    context.stroke();
-    context.fillStyle = '#ffc93c';
-    circle(context, 640 + sway, 34, 10);
-    context.fill();
-    context.fillStyle = 'rgba(255,201,60,0.25)';
-    circle(context, 640 + sway, 34, 18);
+    context.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     context.fill();
   }
 
@@ -332,212 +146,411 @@ export function createRenderer(canvas) {
   }
 
   function drawBoard(state) {
+    roundRect(context, BOARD.x, BOARD.y + 3, BOARD.width, BOARD.height, 10);
+    context.fillStyle = 'rgba(35, 23, 17, 0.16)';
+    context.fill();
+
     roundRect(context, BOARD.x, BOARD.y, BOARD.width, BOARD.height, 10);
     context.fillStyle = PALETTE.panel;
     context.fill();
     context.strokeStyle = PALETTE.panelEdge;
-    context.lineWidth = 2;
-    roundRect(context, BOARD.x, BOARD.y, BOARD.width, BOARD.height, 10);
+    context.lineWidth = 2.5;
     context.stroke();
-    text('PAPAN PESANAN', BOARD.x + 14, BOARD.y + 22, 13, PALETTE.muted, 'left', 800);
+
+    // Header pill tab for PAPAN PESANAN.
+    roundRect(context, BOARD.x + 12, BOARD.y + 5, 132, 18, 5);
+    context.fillStyle = PALETTE.wood;
+    context.fill();
+    text('PAPAN PESANAN', BOARD.x + 78, BOARD.y + 18, 11, PALETTE.goldBright, 'center', 800);
+
     const slotW = (BOARD.width - 28 - (BOARD.slots - 1) * BOARD.gap) / BOARD.slots;
     for (let i = 0; i < BOARD.slots; i += 1) {
       const x = BOARD.x + 14 + i * (slotW + BOARD.gap);
-      const y = BOARD.y + 28;
+      const y = BOARD.y + 27;
       const ticket = state.tickets[i];
-      roundRect(context, x, y, slotW, 56, 6);
-      context.fillStyle = ticket ? PALETTE.paper : 'rgba(0,0,0,0.06)';
+
+      roundRect(context, x, y, slotW, 56, 7);
+      context.fillStyle = ticket ? PALETTE.paper : 'rgba(111, 69, 37, 0.08)';
       context.fill();
-      context.strokeStyle = ticket ? '#e0d6bd' : 'rgba(0,0,0,0.08)';
-      context.lineWidth = 1;
-      roundRect(context, x, y, slotW, 56, 6);
+      context.strokeStyle = ticket ? '#d4be96' : 'rgba(111, 69, 37, 0.14)';
+      context.lineWidth = 1.5;
       context.stroke();
       if (!ticket) continue;
+
       const dish = DISHES[ticket.dishId];
       const frac = Math.max(0, ticket.patience / ticket.patienceMax);
       const flashing = frac < 0.25 && Math.sin(state.time * 10) > 0;
-      // Wok match: this ticket's recipe is what the wok holds.
       const wok = state.wok;
       const wokMatches =
         !dish.drink && wok.contents.length > 0 && wok.contents.every((item) => dish.wok.includes(item));
+
       if (wokMatches) {
-        context.strokeStyle = '#2e7d32';
+        context.strokeStyle = PALETTE.greenLight;
         context.lineWidth = 3;
-        roundRect(context, x, y, slotW, 56, 6);
+        roundRect(context, x, y, slotW, 56, 7);
         context.stroke();
       }
-      text(dish.short, x + 8, y + 18, 14, flashing ? '#c0392b' : PALETTE.ink, 'left', 800);
-      text(`Rp${ticket.price.toLocaleString('id-ID')}`, x + slotW - 8, y + 18, 12, '#7a5a3a', 'right', 700);
+
+      // Small terracotta clip pin at top center of each ticket.
+      roundRect(context, x + slotW / 2 - 14, y - 3, 28, 6, 3);
+      context.fillStyle = wokMatches ? PALETTE.greenLight : PALETTE.terracotta;
+      context.fill();
+
+      text(dish.short, x + 10, y + 18, 14, flashing ? PALETTE.red : PALETTE.ink, 'left', 800);
+      text(`Rp${ticket.price.toLocaleString('id-ID')}`, x + slotW - 10, y + 18, 12, PALETTE.wood, 'right', 700);
+
       const icons = ticketIcons(ticket);
       icons.forEach((id, index) => {
-        const ix = x + 20 + index * 26;
-        const iy = y + 36;
+        const ix = x + 22 + index * 27;
+        const iy = y + 35;
         drawIngredientIcon(context, id, ix, iy, 20);
         const inWok = !dish.drink && wok.contents.includes(id) && dish.wok.includes(id);
         const inWokChopped = !dish.drink && wok.contents.includes(`${id}_c`) && dish.wok.includes(`${id}_c`);
         const onPlate = state.plates.some((plate) => plate && plate.dishId === ticket.dishId && (id !== 'kerupuk' || plate.kerupuk));
         if (inWok || inWokChopped || onPlate || (dish.drink && state.hands.some((h) => h && h.kind === 'drink'))) {
-          context.strokeStyle = '#2e7d32';
-          context.lineWidth = 2.5;
+          circle(context, ix + 6, iy + 5, 6);
+          context.fillStyle = PALETTE.greenLight;
+          context.fill();
+          context.strokeStyle = '#ffffff';
+          context.lineWidth = 1.8;
           context.beginPath();
-          context.moveTo(ix - 5, iy + 1);
-          context.lineTo(ix - 1, iy + 5);
-          context.lineTo(ix + 6, iy - 5);
+          context.moveTo(ix + 3, iy + 5);
+          context.lineTo(ix + 5.5, iy + 7.5);
+          context.lineTo(ix + 9, iy + 2.5);
           context.stroke();
         }
       });
-      bar(x + 8, y + 48, slotW - 16, 6, frac, patienceColor(frac));
+
+      bar(x + 8, y + 47, slotW - 16, 6, frac, patienceColor(frac));
     }
   }
 
   function drawBins() {
+    // Cohesive dark-teak prep bench backing behind the 8 ingredient bins.
+    roundRect(context, 14, 162, 452, 100, 10);
+    context.fillStyle = '#4f2b17';
+    context.fill();
+    context.strokeStyle = PALETTE.woodEdge;
+    context.lineWidth = 2;
+    context.stroke();
+
+    // Section badge pill neatly aligned above the bench.
+    roundRect(context, 20, 154, 58, 15, 4);
+    context.fillStyle = PALETTE.terracotta;
+    context.fill();
+    text('BAHAN', 49, 165, 10, '#fff9ec', 'center', 800);
+
     for (const bin of STATIONS.bins) {
       roundRect(context, bin.x, bin.y, bin.w, bin.h, 8);
       context.fillStyle = PALETTE.woodTop;
       context.fill();
       context.strokeStyle = PALETTE.woodEdge;
       context.lineWidth = 2;
-      roundRect(context, bin.x, bin.y, bin.w, bin.h, 8);
       context.stroke();
-      drawIngredientIcon(context, bin.id, bin.x + 20, bin.y + bin.h / 2, 26);
-      text(INGREDIENTS[bin.id].name, bin.x + 38, bin.y + 20, 13, '#fff8ea', 'left', 800);
-      if (INGREDIENTS[bin.id].chop) text('cincang dulu', bin.x + 38, bin.y + 35, 9, '#ffd9a0', 'left', 600);
+
+      // Warm top inner highlight.
+      context.fillStyle = 'rgba(255, 240, 210, 0.16)';
+      context.fillRect(bin.x + 4, bin.y + 2, bin.w - 8, 3);
+
+      // Ceramic bowl recess behind ingredient icon.
+      circle(context, bin.x + 21, bin.y + bin.h / 2, 15);
+      context.fillStyle = '#532d18';
+      context.fill();
+      context.strokeStyle = '#c88b4b';
+      context.lineWidth = 1;
+      context.stroke();
+
+      drawIngredientIcon(context, bin.id, bin.x + 21, bin.y + bin.h / 2, 24);
+      text(INGREDIENTS[bin.id].name, bin.x + 40, bin.y + 19, 12, '#fff9ec', 'left', 800);
+      if (INGREDIENTS[bin.id].chop) {
+        text('cincang dulu', bin.x + 40, bin.y + 33, 9, PALETTE.goldBright, 'left', 700);
+      } else {
+        text('siap pakai', bin.x + 40, bin.y + 33, 9, '#e7caa0', 'left', 600);
+      }
     }
-    text('BAHAN', 20, 164, 11, PALETTE.muted, 'left', 800);
   }
 
   function drawTalenan(state) {
     const st = STATIONS.talenan;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
-    context.fillStyle = '#c89b6a';
+    // Outer teak counter frame.
+    roundRect(context, st.x, st.y, st.w, st.h, 9);
+    context.fillStyle = PALETTE.wood;
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
-    context.lineWidth = 2;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    context.lineWidth = 2.5;
     context.stroke();
-    text(st.label, st.x + 10, st.y + 18, 12, '#6f4525', 'left', 800);
+
+    // Inner light-maple butcher block cutting surface.
+    roundRect(context, st.x + 6, st.y + 22, st.w - 12, st.h - 28, 6);
+    context.fillStyle = '#e5be8a';
+    context.fill();
+    context.strokeStyle = '#b48049';
+    context.lineWidth = 1.5;
+    context.stroke();
+
+    // Subtle knife score marks on empty/active board.
+    context.strokeStyle = 'rgba(130, 82, 38, 0.22)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(st.x + 24, st.y + 42);
+    context.lineTo(st.x + 58, st.y + 66);
+    context.moveTo(st.x + 34, st.y + 38);
+    context.lineTo(st.x + 66, st.y + 62);
+    context.stroke();
+
+    // Resting chef knife silhouette on far right edge when idle.
     const board = state.board;
+    if (!board.item) {
+      context.fillStyle = '#d8dee8';
+      context.fillRect(st.x + st.w - 42, st.y + 30, 24, 9);
+      context.fillStyle = '#3b2318';
+      context.fillRect(st.x + st.w - 19, st.y + 32, 10, 5);
+    }
+
+    // Header badge.
+    text(st.label, st.x + 10, st.y + 16, 12, PALETTE.goldBright, 'left', 800);
+
+    // Thud flash impact ring + diagonal blade slash when chopping.
+    if (state.talenanFlash > 0) {
+      context.save();
+      context.globalAlpha = state.talenanFlash * 0.75;
+      circle(context, st.x + 44, st.y + 54, 24 + (1 - state.talenanFlash) * 10);
+      context.strokeStyle = '#fff9e6';
+      context.lineWidth = 3;
+      context.stroke();
+      context.beginPath();
+      context.moveTo(st.x + 26, st.y + 36);
+      context.lineTo(st.x + 62, st.y + 72);
+      context.stroke();
+      context.restore();
+    }
+
     if (board.item) {
-      drawIngredientIcon(context, board.item.id, st.x + 60, st.y + 52, 44);
+      drawIngredientIcon(context, board.item.id, st.x + 44, st.y + 54, 38);
       if (board.item.kind === 'ing') {
-        bar(st.x + 100, st.y + 44, 80, 10, board.chops / CHOPS_NEEDED, '#c0392b');
-        text(`CINCANG ${board.chops}/${CHOPS_NEEDED}`, st.x + 100, st.y + 68, 11, '#6f4525', 'left', 700);
+        bar(st.x + 88, st.y + 39, 98, 12, board.chops / CHOPS_NEEDED, PALETTE.terracotta, 'rgba(35, 23, 17, 0.25)');
+        text(`CINCANG ${board.chops}/${CHOPS_NEEDED}`, st.x + 137, st.y + 70, 12, PALETTE.ink, 'center', 800);
       } else {
-        text('SUDAH DICINCANG', st.x + 100, st.y + 56, 11, '#2e7d32', 'left', 700);
+        roundRect(context, st.x + 86, st.y + 40, 100, 28, 7);
+        context.fillStyle = PALETTE.green;
+        context.fill();
+        context.strokeStyle = '#fff8ea';
+        context.lineWidth = 1.5;
+        context.stroke();
+        text('SIAP MASAK', st.x + 136, st.y + 59, 12, '#fffdf7', 'center', 800);
       }
     } else {
-      text('Klik bahan mentah, lalu cincang', st.x + 10, st.y + 56, 11, '#8a6a45', 'left', 600);
+      text('Cincang ayam,', st.x + 14, st.y + 50, 11, PALETTE.woodEdge, 'left', 700);
+      text('cabai & bawang', st.x + 14, st.y + 66, 11, PALETTE.woodEdge, 'left', 700);
     }
   }
 
   function drawWajan(state) {
     const st = STATIONS.wajan;
     const wok = state.wok;
-    // Label and status live in the free strip above the bowl.
-    text(st.label, st.x + 10, st.y + 16, 12, '#fdfdfd', 'left', 800);
+
+    // Full cast-iron and warm-espresso stove hearth panel.
+    roundRect(context, st.x, st.y, st.w, st.h, 10);
+    context.fillStyle = '#2d241f';
+    context.fill();
+    context.strokeStyle = '#7a4424';
+    context.lineWidth = 2.5;
+    context.stroke();
+
+    // Dark top status strip.
+    roundRect(context, st.x + 3, st.y + 3, st.w - 6, 24, 7);
+    context.fillStyle = '#1b130f';
+    context.fill();
+
+    text(st.label, st.x + 12, st.y + 20, 12, PALETTE.goldBright, 'left', 800);
+
+    // High-contrast status pill at top right of wajan.
+    let statusText = '';
+    let pillBg = '';
+    let pillFg = '#ffffff';
     if (wok.cooking) {
-      text('MEMASAK...', st.x + st.w - 10, st.y + 16, 11, '#ffd9a0', 'right', 700);
+      statusText = 'MEMASAK...';
+      pillBg = PALETTE.terracotta;
+      pillFg = '#fff8e6';
     } else if (wok.ready) {
       const blink = Math.sin(state.time * 8) > 0;
-      text('ANGKAT!', st.x + st.w - 10, st.y + 16, 14, blink ? '#ffc93c' : '#ffffff', 'right', 800);
+      statusText = 'ANGKAT!';
+      pillBg = blink ? PALETTE.greenLight : PALETTE.gold;
+      pillFg = blink ? '#ffffff' : PALETTE.ink;
     } else if (wok.burnt) {
-      text('GOSONG!', st.x + st.w - 10, st.y + 16, 12, '#ff8a7a', 'right', 700);
+      statusText = 'GOSONG!';
+      pillBg = '#a82218';
+      pillFg = '#ffffff';
     } else if (wok.invalid) {
-      text('BUKAN RESEP!', st.x + st.w - 10, st.y + 16, 12, '#ff8a7a', 'right', 700);
+      statusText = 'BUKAN RESEP!';
+      pillBg = '#a82218';
+      pillFg = '#ffffff';
     } else if (wok.contents.length > 0) {
-      text('Tambah bahan...', st.x + st.w - 10, st.y + 16, 11, '#cfd6e4', 'right', 600);
+      statusText = 'Tambah bahan';
+      pillBg = '#495264';
+      pillFg = '#fff8ea';
     }
-    // Progress: a vertical bar in the free strip at the right of the bowl.
-    if (wok.cooking) {
-      roundRect(context, st.x + st.w - 16, st.y + 28, 10, 46, 5);
-      context.fillStyle = 'rgba(0,0,0,0.3)';
+
+    if (statusText) {
+      const pw = statusText.length > 10 ? 116 : 96;
+      const px = st.x + st.w - pw - 6;
+      const py = st.y + 5;
+      roundRect(context, px, py, pw, 20, 6);
+      context.fillStyle = pillBg;
       context.fill();
-      const fillH = Math.max(5, 46 * Math.min(1, wok.progress));
-      roundRect(context, st.x + st.w - 16, st.y + 28 + 46 - fillH, 10, fillH, 5);
-      context.fillStyle = '#ff9a2a';
-      context.fill();
+      text(statusText, px + pw / 2, py + 14, 11, pillFg, 'center', 800);
     }
-    // Stove.
-    roundRect(context, st.x, st.y + 78, st.w, 26, 8);
+
+    // Cast-iron burner grate deck.
+    roundRect(context, st.x + 8, st.y + 76, st.w - 16, 22, 7);
     context.fillStyle = PALETTE.steel;
     context.fill();
-    // Flame under the bowl, peeking out below its rim.
-    const flick = Math.sin(state.time * 11) * 4 + Math.sin(state.time * 23) * 2;
+    context.strokeStyle = PALETTE.steelLight;
+    context.lineWidth = 1.5;
+    context.stroke();
+
+    // Flame under the wok bowl.
+    const flick = Math.sin(state.time * 12) * 3.5 + Math.sin(state.time * 25) * 2;
     if (wok.cooking || wok.ready) {
       context.fillStyle = PALETTE.flame;
       context.beginPath();
-      context.moveTo(st.x + 40, st.y + 78);
-      context.quadraticCurveTo(st.x + 120, st.y + 36 + flick, st.x + 200, st.y + 78);
-      context.quadraticCurveTo(st.x + 120, st.y + 66, st.x + 40, st.y + 78);
+      context.moveTo(st.x + 42, st.y + 82);
+      context.quadraticCurveTo(st.x + 112, st.y + 38 + flick, st.x + 186, st.y + 82);
+      context.quadraticCurveTo(st.x + 112, st.y + 70, st.x + 42, st.y + 82);
       context.fill();
       context.fillStyle = PALETTE.flameHot;
       context.beginPath();
-      context.moveTo(st.x + 78, st.y + 78);
-      context.quadraticCurveTo(st.x + 120, st.y + 52 + flick, st.x + 162, st.y + 78);
-      context.quadraticCurveTo(st.x + 120, st.y + 70, st.x + 78, st.y + 78);
+      context.moveTo(st.x + 74, st.y + 82);
+      context.quadraticCurveTo(st.x + 112, st.y + 54 + flick, st.x + 150, st.y + 82);
+      context.quadraticCurveTo(st.x + 112, st.y + 73, st.x + 74, st.y + 82);
       context.fill();
     }
-    // Wok bowl.
-    context.fillStyle = '#23262e';
-    ctxEllipse(st.x + 120, st.y + 48, 86, 22);
-    context.fillStyle = '#4a4f5c';
-    ctxEllipse(st.x + 120, st.y + 46, 78, 19);
-    context.fillStyle = '#2c2f38';
-    ctxEllipse(st.x + 120, st.y + 44, 70, 15);
-    // Contents.
-    wok.contents.forEach((id, index) => {
-      drawIngredientIcon(context, id, st.x + 62 + index * 30, st.y + 44, 24);
-    });
-  }
 
-  function ctxEllipse(x, y, rx, ry) {
+    // Wooden wok handle extending right-down.
+    context.save();
+    context.strokeStyle = '#9a5b32';
+    context.lineWidth = 8;
+    context.lineCap = 'round';
     context.beginPath();
-    context.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-    context.fill();
+    context.moveTo(st.x + 182, st.y + 54);
+    context.lineTo(st.x + 210, st.y + 66);
+    context.stroke();
+    context.restore();
+
+    // Cast-iron wok bowl.
+    context.fillStyle = '#1b1e25';
+    ctxEllipse(st.x + 112, st.y + 52, 82, 22);
+    context.fillStyle = '#474f5e';
+    ctxEllipse(st.x + 112, st.y + 50, 76, 19);
+    context.fillStyle = wok.burnt ? '#201816' : '#282c36';
+    ctxEllipse(st.x + 112, st.y + 48, 68, 15);
+
+    // Rim specular highlight.
+    context.strokeStyle = 'rgba(255, 224, 175, 0.35)';
+    context.lineWidth = 1.5;
+    context.beginPath();
+    context.ellipse(st.x + 112, st.y + 48, 69, 15, 0, Math.PI * 1.1, Math.PI * 1.9);
+    context.stroke();
+
+    // Contents inside wok.
+    wok.contents.forEach((id, index) => {
+      drawIngredientIcon(context, id, st.x + 62 + index * 32, st.y + 48, 24);
+    });
+
+    // Vertical cooking progress gauge on the right side of the stove.
+    if (wok.cooking || wok.ready) {
+      const gx = st.x + st.w - 20;
+      const gy = st.y + 32;
+      const gh = 48;
+      roundRect(context, gx, gy, 12, gh, 6);
+      context.fillStyle = '#14171c';
+      context.fill();
+      context.strokeStyle = '#6c768a';
+      context.lineWidth = 1.2;
+      context.stroke();
+
+      const frac = wok.ready ? 1 : Math.min(1, wok.progress);
+      const fillH = Math.max(8, (gh - 4) * frac);
+      roundRect(context, gx + 2, gy + gh - 2 - fillH, 8, fillH, 4);
+      context.fillStyle = wok.ready ? PALETTE.greenLight : PALETTE.flameHot;
+      context.fill();
+    }
   }
 
   function drawDispenser(state) {
     const st = STATIONS.dispenser;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
-    context.fillStyle = '#7fb3d5';
+    roundRect(context, st.x, st.y, st.w, st.h, 9);
+    context.fillStyle = '#2d5c6e';
     context.fill();
-    context.strokeStyle = '#4a7ba6';
-    context.lineWidth = 2;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    context.strokeStyle = '#183744';
+    context.lineWidth = 2.5;
     context.stroke();
-    text(st.label, st.x + 10, st.y + 18, 12, '#123a56', 'left', 800);
-    drawIngredientIcon(context, 'teh', st.x + 30, st.y + 52, 34);
-    drawIngredientIcon(context, 'es', st.x + 72, st.y + 52, 26);
+
+    // Top inner frost panel.
+    roundRect(context, st.x + 6, st.y + 22, st.w - 12, st.h - 42, 6);
+    context.fillStyle = '#7bb8cf';
+    context.fill();
+
+    text(st.label, st.x + 10, st.y + 17, 12, PALETTE.goldBright, 'left', 800);
+    drawIngredientIcon(context, 'teh', st.x + 34, st.y + 46, 32);
+    drawIngredientIcon(context, 'es', st.x + 76, st.y + 46, 26);
+
     if (state.dispenser.pouring) {
-      bar(st.x + 96, st.y + 46, 34, 12, state.dispenser.progress, '#ffc93c');
+      bar(st.x + 100, st.y + 40, 28, 12, state.dispenser.progress, PALETTE.goldBright, 'rgba(20, 40, 50, 0.35)');
+      text('Menuang...', st.x + st.w / 2, st.y + 82, 10, '#fff8ea', 'center', 700);
     } else {
-      text('Klik untuk tuang', st.x + st.w / 2, st.y + 82, 10, '#123a56', 'center', 600);
+      text('Klik untuk tuang', st.x + st.w / 2, st.y + 82, 10, '#fff8ea', 'center', 700);
     }
   }
 
   function drawPiring(state) {
     const st = STATIONS.piring;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    roundRect(context, st.x, st.y, st.w, st.h, 9);
     context.fillStyle = PALETTE.woodTop;
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
-    context.lineWidth = 2;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    context.lineWidth = 2.5;
     context.stroke();
-    text(st.label, st.x + 10, st.y + 18, 12, '#fff8ea', 'left', 800);
+
+    // Top highlight strip.
+    context.fillStyle = 'rgba(255, 240, 210, 0.16)';
+    context.fillRect(st.x + 6, st.y + 3, st.w - 12, 3);
+
+    text(st.label, st.x + 10, st.y + 18, 12, PALETTE.goldBright, 'left', 800);
+
     state.plates.forEach((plate, index) => {
-      const cx = st.x + 52 + index * 96;
-      const cy = st.y + 56;
-      context.fillStyle = 'rgba(0,0,0,0.12)';
-      circle(context, cx, cy + 4, 30);
+      const cx = st.x + 54 + index * 92;
+      const cy = st.y + 47;
+      context.fillStyle = 'rgba(35, 23, 17, 0.22)';
+      circle(context, cx, cy + 3, 25);
       context.fill();
+
       if (plate) {
-        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 52);
-        text(DISHES[plate.dishId].short, cx, st.y + 86, 10, '#fff8ea', 'center', 700);
+        // Warm glow ring under ready plate.
+        const glow = context.createRadialGradient(cx, cy, 12, cx, cy, 31);
+        glow.addColorStop(0, 'rgba(255, 216, 107, 0.5)');
+        glow.addColorStop(1, 'rgba(255, 216, 107, 0)');
+        context.fillStyle = glow;
+        circle(context, cx, cy, 31);
+        context.fill();
+
+        drawPlateIcon(context, plate.dishId, plate.kerupuk, cx, cy, 46);
+
+        // High-contrast label pill cleanly below the plate.
+        const shortName = DISHES[plate.dishId].short;
+        const pw = Math.min(88, Math.max(58, shortName.length * 7 + 14));
+        roundRect(context, cx - pw / 2, st.y + 72, pw, 17, 5);
+        context.fillStyle = '#231711';
+        context.fill();
+        context.strokeStyle = PALETTE.goldBright;
+        context.lineWidth = 1;
+        context.stroke();
+        text(shortName, cx, st.y + 84, 10, '#fff9ec', 'center', 800);
       } else {
-        context.strokeStyle = 'rgba(255,255,255,0.5)';
+        context.strokeStyle = 'rgba(255, 246, 224, 0.5)';
+        context.lineWidth = 1.5;
         context.setLineDash([4, 4]);
-        circle(context, cx, cy, 26);
+        circle(context, cx, cy, 23);
         context.stroke();
         context.setLineDash([]);
       }
@@ -546,116 +559,252 @@ export function createRenderer(canvas) {
 
   function drawSaji(state) {
     const st = STATIONS.saji;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
-    context.fillStyle = '#b0713e';
+    roundRect(context, st.x, st.y, st.w, st.h, 9);
+    context.fillStyle = '#9c562c';
     context.fill();
     context.strokeStyle = PALETTE.woodEdge;
-    context.lineWidth = 2;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    context.lineWidth = 2.5;
     context.stroke();
-    text(st.label, st.x + 10, st.y + 18, 12, '#fff8ea', 'left', 800);
-    // Service bell.
-    context.fillStyle = '#f2c94c';
-    context.beginPath();
-    context.arc(st.x + st.w - 34, st.y + 46, 14, Math.PI, 0);
+
+    // Terracotta service pass mat strip.
+    roundRect(context, st.x + 8, st.y + 22, st.w - 16, st.h - 40, 6);
+    context.fillStyle = '#b46b3c';
     context.fill();
-    context.fillRect(st.x + st.w - 48, st.y + 46, 28, 4);
+
+    text(st.label, st.x + 12, st.y + 18, 12, PALETTE.goldBright, 'left', 800);
+
+    // Polished brass service bell on wooden base.
+    const bx = st.x + st.w - 36;
+    const by = st.y + 50;
+    context.fillStyle = 'rgba(35, 23, 17, 0.25)';
+    ctxEllipse(bx, by + 6, 17, 5);
+    context.fillStyle = '#3b2318';
+    roundRect(context, bx - 16, by + 2, 32, 6, 2);
+    context.fill();
+    context.fillStyle = PALETTE.gold;
+    context.beginPath();
+    context.arc(bx, by + 2, 13, Math.PI, 0);
+    context.fill();
+    context.fillStyle = '#fff2b0';
+    circle(context, bx - 4, by - 5, 3);
+    context.fill();
+    context.fillStyle = '#8b5a2b';
+    circle(context, bx, by - 12, 3);
+    context.fill();
+
     state.serveSlots.forEach((slot, index) => {
       const cx = st.x + 90 + index * 130;
-      const cy = st.y + 56;
+      const cy = st.y + 48;
       if (slot.item) {
-        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 40);
-        else drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 52);
-        context.strokeStyle = '#2e7d32';
-        context.lineWidth = 3;
+        if (slot.item.kind === 'drink') drawIngredientIcon(context, 'teh', cx, cy, 38);
+        else drawPlateIcon(context, slot.item.dishId, slot.item.kerupuk, cx, cy, 46);
+        circle(context, cx + 18, cy + 12, 9);
+        context.fillStyle = PALETTE.greenLight;
+        context.fill();
+        context.strokeStyle = '#ffffff';
+        context.lineWidth = 2;
         context.beginPath();
-        context.moveTo(cx - 8, cy + 2);
-        context.lineTo(cx - 2, cy + 8);
-        context.lineTo(cx + 10, cy - 8);
+        context.moveTo(cx + 13, cy + 12);
+        context.lineTo(cx + 17, cy + 16);
+        context.lineTo(cx + 23, cy + 8);
         context.stroke();
       } else {
-        context.strokeStyle = 'rgba(255,255,255,0.5)';
+        context.strokeStyle = 'rgba(255, 246, 224, 0.55)';
+        context.lineWidth = 1.5;
         context.setLineDash([4, 4]);
-        circle(context, cx, cy, 26);
+        circle(context, cx, cy, 23);
         context.stroke();
         context.setLineDash([]);
       }
     });
-    text('Sajikan piring yang cocok dengan pesanan', st.x + 10, st.y + 86, 11, '#ffe9c4', 'left', 600);
+
+    text('Sajikan piring yang cocok dengan pesanan', st.x + 12, st.y + 86, 11, '#fff2d8', 'left', 700);
   }
 
   function drawTrash() {
     const st = STATIONS.trash;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
-    context.fillStyle = '#4a4f5c';
+    roundRect(context, st.x, st.y, st.w, st.h, 9);
+    context.fillStyle = '#363c48';
     context.fill();
-    context.strokeStyle = '#2c2f38';
-    context.lineWidth = 2;
-    roundRect(context, st.x, st.y, st.w, st.h, 8);
+    context.strokeStyle = '#1f232b';
+    context.lineWidth = 2.5;
     context.stroke();
-    text(st.label, st.x + st.w / 2, st.y + 26, 12, '#eef1f5', 'center', 800);
-    text('Buang bahan', st.x + st.w / 2, st.y + 48, 10, '#b9c0cc', 'center', 600);
-    text('(Q)', st.x + st.w / 2, st.y + 66, 10, '#b9c0cc', 'center', 600);
+
+    // Top pedal-bin lid band.
+    roundRect(context, st.x + 4, st.y + 4, st.w - 8, 12, 5);
+    context.fillStyle = '#535c6e';
+    context.fill();
+
+    text(st.label, st.x + st.w / 2, st.y + 34, 12, '#fff5e4', 'center', 800);
+    text('Buang bahan', st.x + st.w / 2, st.y + 52, 10, '#cfd6e4', 'center', 600);
+    text('(Q)', st.x + st.w / 2, st.y + 68, 10, PALETTE.goldBright, 'center', 700);
   }
 
   function drawCook(state) {
     const cook = state.cook;
-    context.fillStyle = 'rgba(0,0,0,0.18)';
-    ctxEllipse(cook.x, cook.y + 20, 24, 7);
-    // Body: apron over shirt.
+    const moving = cook.tx !== null && cook.ty !== null;
+    const bob = moving ? Math.sin(state.time * 16) * 2 : 0;
+
+    // Ground shadow.
+    context.fillStyle = 'rgba(35, 23, 17, 0.24)';
+    ctxEllipse(cook.x, cook.y + 21, 24, 8);
+
+    // Body: cream shirt + terracotta warung apron with outline.
     context.fillStyle = PALETTE.cookShirt;
-    roundRect(context, cook.x - 20, cook.y - 6, 40, 26, 10);
+    roundRect(context, cook.x - 19, cook.y - 6 + bob, 38, 25, 10);
     context.fill();
+    context.strokeStyle = PALETTE.ink;
+    context.lineWidth = 1.8;
+    context.stroke();
+
     context.fillStyle = PALETTE.cookApron;
-    roundRect(context, cook.x - 14, cook.y - 2, 28, 22, 8);
+    roundRect(context, cook.x - 13, cook.y - 1 + bob, 26, 20, 7);
     context.fill();
-    // Head + hat.
+
+    // Apron pocket accent.
+    context.fillStyle = '#9a311c';
+    roundRect(context, cook.x - 7, cook.y + 8 + bob, 14, 7, 2);
+    context.fill();
+
+    // Head + pleated chef toque (compact height so it never clips TALENAN items).
     context.fillStyle = PALETTE.cookSkin;
-    circle(context, cook.x, cook.y - 20, 15);
+    circle(context, cook.x, cook.y - 18 + bob, 14);
     context.fill();
+    context.strokeStyle = PALETTE.ink;
+    context.lineWidth = 1.5;
+    context.stroke();
+
+    // Chef hat band & puff.
     context.fillStyle = PALETTE.cookHat;
-    roundRect(context, cook.x - 17, cook.y - 40, 34, 14, 7);
+    roundRect(context, cook.x - 15, cook.y - 34 + bob, 30, 11, 5);
     context.fill();
-    circle(context, cook.x - 10, cook.y - 40, 8);
+    context.strokeStyle = '#c8b493';
+    context.lineWidth = 1.2;
+    context.stroke();
+    circle(context, cook.x - 8, cook.y - 35 + bob, 6.5);
     context.fill();
-    circle(context, cook.x + 10, cook.y - 40, 8);
+    circle(context, cook.x + 8, cook.y - 35 + bob, 6.5);
     context.fill();
-    circle(context, cook.x, cook.y - 44, 9);
+    circle(context, cook.x, cook.y - 38 + bob, 7.5);
     context.fill();
-    // Face.
-    context.fillStyle = '#2b2118';
-    circle(context, cook.x - 5 * cook.face, cook.y - 22, 1.8);
+
+    // Rosy cheeks + eyes + smile.
+    context.fillStyle = 'rgba(217, 91, 67, 0.35)';
+    circle(context, cook.x - 8, cook.y - 15 + bob, 2.8);
     context.fill();
-    circle(context, cook.x + 5 * cook.face, cook.y - 22, 1.8);
+    circle(context, cook.x + 8, cook.y - 15 + bob, 2.8);
     context.fill();
-    context.strokeStyle = '#2b2118';
+
+    context.fillStyle = PALETTE.ink;
+    circle(context, cook.x - 4.5 + cook.face * 1.5, cook.y - 20 + bob, 1.8);
+    context.fill();
+    circle(context, cook.x + 4.5 + cook.face * 1.5, cook.y - 20 + bob, 1.8);
+    context.fill();
+
+    context.strokeStyle = PALETTE.ink;
     context.lineWidth = 1.5;
     context.beginPath();
-    context.arc(cook.x + 2 * cook.face, cook.y - 15, 4, 0.15 * Math.PI, 0.85 * Math.PI);
+    context.arc(cook.x + cook.face * 1.5, cook.y - 14 + bob, 3.8, 0.15 * Math.PI, 0.85 * Math.PI);
     context.stroke();
-    // Hands: carried items above the cook.
-    state.hands.forEach((item, index) => {
-      const hx = cook.x - 34 + index * 34;
-      const hy = cook.y - 62;
-      context.fillStyle = 'rgba(255,248,234,0.9)';
-      circle(context, hx, hy, 15);
+
+    // Draw ONLY carried items neatly beside the cook (no empty white circles above head!).
+    const carried = state.hands.filter((item) => item !== null);
+    carried.forEach((item, index) => {
+      const offsets = [
+        [-27, 2],
+        [27, 2],
+        [0, -54],
+      ];
+      const [ox, oy] = offsets[index] || [0, -54];
+      const hx = cook.x + ox;
+      const hy = cook.y + oy + bob;
+      context.fillStyle = 'rgba(255, 248, 234, 0.94)';
+      circle(context, hx, hy, 14);
       context.fill();
-      context.strokeStyle = '#d9a05b';
-      context.lineWidth = 1.5;
-      circle(context, hx, hy, 15);
+      context.strokeStyle = PALETTE.panelEdge;
+      context.lineWidth = 2;
       context.stroke();
-      if (!item) return;
-      if (item.kind === 'ing' || item.kind === 'chopped') drawIngredientIcon(context, item.id, hx, hy, 22);
-      else if (item.kind === 'cooked') drawPlateIcon(context, item.dishId, false, hx, hy, 26);
-      else if (item.kind === 'plate') drawPlateIcon(context, item.dishId, item.kerupuk, hx, hy, 26);
-      else if (item.kind === 'drink') drawIngredientIcon(context, 'teh', hx, hy, 24);
+
+      if (item.kind === 'ing' || item.kind === 'chopped') drawIngredientIcon(context, item.id, hx, hy, 20);
+      else if (item.kind === 'cooked') drawPlateIcon(context, item.dishId, false, hx, hy, 24);
+      else if (item.kind === 'plate') drawPlateIcon(context, item.dishId, item.kerupuk, hx, hy, 24);
+      else if (item.kind === 'drink') drawIngredientIcon(context, 'teh', hx, hy, 22);
     });
-    if (state.cook.busy > 0) {
-      text('...', cook.x, cook.y - 78, 14, PALETTE.ink, 'center', 800);
-    }
   }
 
-  function drawParticles(state) {
+  function drawHandTray(state) {
+    // Clean 3-slot hand inventory tray anchored neatly in the bottom center corridor.
+    const tx = 532;
+    const ty = 640;
+    const tw = 216;
+    const th = 46;
+    context.save();
+    roundRect(context, tx + 2, ty + 3, tw, th, 10);
+    context.fillStyle = 'rgba(20, 11, 6, 0.28)';
+    context.fill();
+
+    roundRect(context, tx, ty, tw, th, 10);
+    context.fillStyle = '#3b2318';
+    context.fill();
+    context.strokeStyle = '#c88b4b';
+    context.lineWidth = 2;
+    context.stroke();
+
+    text('TANGAN', tx + 34, ty + 27, 10, PALETTE.goldBright, 'center', 800);
+
+    state.hands.forEach((item, index) => {
+      const sx = tx + 84 + index * 46;
+      const sy = ty + 23;
+      circle(context, sx, sy, 17);
+      context.fillStyle = item ? '#fff8ea' : 'rgba(255, 248, 234, 0.14)';
+      context.fill();
+      context.strokeStyle = item ? PALETTE.goldBright : 'rgba(255, 216, 107, 0.35)';
+      context.lineWidth = 1.5;
+      context.stroke();
+
+      if (!item) return;
+      if (item.kind === 'ing' || item.kind === 'chopped') drawIngredientIcon(context, item.id, sx, sy, 22);
+      else if (item.kind === 'cooked') drawPlateIcon(context, item.dishId, false, sx, sy, 26);
+      else if (item.kind === 'plate') drawPlateIcon(context, item.dishId, item.kerupuk, sx, sy, 26);
+      else if (item.kind === 'drink') drawIngredientIcon(context, 'teh', sx, sy, 24);
+    });
+    context.restore();
+  }
+
+  function drawParticles(state, showFloats) {
+    // Render deterministic visual FX particles (steam, smoke, chop bits, sizzle, sparkle).
+    for (const item of state.fx) {
+      const alpha = Math.max(0, Math.min(1, item.life / item.maxLife));
+      context.save();
+      if (item.kind === 'steam') {
+        context.globalAlpha = alpha * 0.58;
+        context.fillStyle = item.color;
+        circle(context, item.x, item.y, item.size);
+        context.fill();
+      } else if (item.kind === 'smoke') {
+        context.globalAlpha = alpha * 0.62;
+        context.fillStyle = item.color;
+        circle(context, item.x, item.y, item.size);
+        context.fill();
+      } else if (item.kind === 'sizzle' || item.kind === 'sparkle') {
+        context.globalAlpha = alpha;
+        context.fillStyle = item.color;
+        drawFourPointStar(context, item.x, item.y, item.size);
+        context.fillStyle = '#ffffff';
+        circle(context, item.x, item.y, item.size * 0.24);
+        context.fill();
+      } else {
+        context.globalAlpha = alpha;
+        context.fillStyle = item.color;
+        roundRect(context, item.x - item.size / 2, item.y - item.size / 2, item.size, item.size, 1.5);
+        context.fill();
+        context.strokeStyle = 'rgba(35, 23, 17, 0.55)';
+        context.lineWidth = 1;
+        context.stroke();
+      }
+      context.restore();
+    }
+
     for (const particle of state.particles) {
       context.globalAlpha = Math.max(0, particle.life / particle.maxLife);
       context.fillStyle = particle.color;
@@ -663,13 +812,18 @@ export function createRenderer(canvas) {
       context.fill();
     }
     context.globalAlpha = 1;
-    for (const float of state.floats) {
-      context.globalAlpha = Math.max(0, Math.min(1, float.life));
-      shadowText(float.text, float.x, float.y, 20, float.color, 'center');
+
+    if (showFloats) {
+      for (const float of state.floats) {
+        context.globalAlpha = Math.max(0, Math.min(1, float.life));
+        shadowText(float.text, float.x, float.y, 20, float.color, 'center');
+      }
+      context.globalAlpha = 1;
     }
-    context.globalAlpha = 1;
-    if (state.flash > 0) {
-      context.fillStyle = `rgba(192,57,43,${state.flash * 0.35})`;
+
+    if (state.flash > 0 || state.burnFlash > 0) {
+      const a = Math.max(state.flash * 0.3, state.burnFlash * 0.25);
+      context.fillStyle = `rgba(200, 50, 35, ${a})`;
       context.fillRect(0, 0, VIEW.width, VIEW.height);
     }
   }
@@ -682,82 +836,94 @@ export function createRenderer(canvas) {
   }
 
   function drawHUD(state, muted) {
-    context.fillStyle = '#2b2118';
+    context.fillStyle = '#231711';
     context.fillRect(0, 0, VIEW.width, 56);
-    text('WARUNG NASI GORENG', 16, 24, 20, '#ffc93c', 'left', 800);
-    text('RUSH HOUR', 16, 44, 11, '#f7e8c9', 'left', 700);
-    text(dayLabel(state.day) + '/3', 330, 34, 16, '#fdfdfd', 'left', 800);
-    text(`Pesanan ${state.servedToday}/${state.quota}`, 440, 34, 14, '#fdfdfd', 'left', 700);
-    const params = state.timeLeft;
-    bar(580, 18, 150, 12, params / 180, params < 30 ? '#c0392b' : '#ffc93c');
-    text(formatClock(params), 655, 48, 14, '#fdfdfd', 'center', 700);
-    text(coinsLabel(state.coins), 770, 34, 18, '#f2c94c', 'left', 800);
+    context.fillStyle = '#b97e3f';
+    context.fillRect(0, 54, VIEW.width, 2);
+
+    text('WARUNG NASI GORENG', 16, 25, 20, PALETTE.goldBright, 'left', 800);
+    text('RUSH HOUR', 16, 44, 11, '#f0d8b2', 'left', 700);
+
+    // Day & quota pill.
+    roundRect(context, 316, 11, 224, 34, 8);
+    context.fillStyle = '#382419';
+    context.fill();
+    context.strokeStyle = '#6d4429';
+    context.lineWidth = 1;
+    context.stroke();
+    text(dayLabel(state.day) + '/3', 330, 34, 15, '#fff9ec', 'left', 800);
+    text(`Pesanan ${state.servedToday}/${state.quota}`, 426, 34, 14, '#f2dfc0', 'left', 700);
+
+    // Shift timer bar & clock.
+    const timeLeft = state.timeLeft;
+    bar(566, 15, 166, 13, timeLeft / 180, timeLeft < 30 ? PALETTE.red : PALETTE.goldBright, 'rgba(255,255,255,0.14)');
+    text(formatClock(timeLeft), 649, 46, 14, '#fff9ec', 'center', 800);
+
+    // Coins badge (star-emblem gold coin + Rp amount).
+    circle(context, 768, 28, 11);
+    context.fillStyle = PALETTE.gold;
+    context.fill();
+    context.strokeStyle = '#b47718';
+    context.lineWidth = 1.5;
+    context.stroke();
+    context.fillStyle = '#fff5c4';
+    drawFourPointStar(context, 768, 28, 6);
+    text(coinsLabel(state.coins), 786, 34, 18, PALETTE.goldBright, 'left', 800);
+
     if (state.combo > 1) {
-      text(`COMBO x${(1 + Math.min(state.combo - 1, 10) * 0.1).toFixed(1)}`, 950, 34, 15, '#ff9a2a', 'left', 800);
+      roundRect(context, 916, 13, 116, 30, 8);
+      context.fillStyle = PALETTE.terracotta;
+      context.fill();
+      text(`COMBO x${(1 + Math.min(state.combo - 1, 10) * 0.1).toFixed(1)}`, 974, 33, 13, '#fff9ec', 'center', 800);
     }
-    // Fails: three chillies, filled red as orders fail.
+
+    // Fails: 3 chilies.
     for (let i = 0; i < 3; i += 1) {
-      const fx = 1060 + i * 26;
-      drawIngredientIcon(context, 'cabai', fx, 28, 20);
+      const fx = 1062 + i * 26;
       if (i < state.failsToday) {
+        drawIngredientIcon(context, 'cabai', fx, 28, 22);
         context.strokeStyle = '#ffffff';
-        context.lineWidth = 2;
+        context.lineWidth = 2.5;
         context.beginPath();
-        context.moveTo(fx - 8, 20);
-        context.lineTo(fx + 8, 36);
-        context.moveTo(fx + 8, 20);
-        context.lineTo(fx - 8, 36);
+        context.moveTo(fx - 7, 21);
+        context.lineTo(fx + 7, 35);
+        context.moveTo(fx + 7, 21);
+        context.lineTo(fx - 7, 35);
         context.stroke();
       } else {
-        context.globalAlpha = 0.35;
+        context.save();
+        context.globalAlpha = 0.38;
         drawIngredientIcon(context, 'cabai', fx, 28, 20);
-        context.globalAlpha = 1;
+        context.restore();
       }
     }
-    // Mute + pause buttons.
-    for (const [key, rect] of Object.entries(HUD_BUTTONS)) {
+
+    // Mute + pause buttons (preserve exact HUD_BUTTONS hitboxes).
+    for (const rect of Object.values(HUD_BUTTONS)) {
       roundRect(context, rect.x, rect.y, rect.w, rect.h, 8);
-      context.fillStyle = '#4a4f5c';
+      context.fillStyle = '#3d281c';
       context.fill();
-      context.strokeStyle = '#8b93a3';
+      context.strokeStyle = '#b97e3f';
       context.lineWidth = 1.5;
-      roundRect(context, rect.x, rect.y, rect.w, rect.h, 8);
       context.stroke();
     }
-    text(muted ? 'BISU' : 'SUARA', HUD_BUTTONS.mute.x + 26, HUD_BUTTONS.mute.y + 24, 11, '#eef1f5', 'center', 800);
-    text('JEDA', HUD_BUTTONS.pause.x + 26, HUD_BUTTONS.pause.y + 24, 11, '#eef1f5', 'center', 800);
-  }
-
-  function panel(title, lines, prompt, accent) {
-    context.fillStyle = 'rgba(20,12,6,0.55)';
-    context.fillRect(0, 0, VIEW.width, VIEW.height);
-    const width = 640;
-    const height = 150 + lines.length * 30;
-    const x = (VIEW.width - width) / 2;
-    const y = (VIEW.height - height) / 2;
-    roundRect(context, x, y, width, height, 14);
-    context.fillStyle = '#fff8ea';
-    context.fill();
-    context.strokeStyle = PALETTE.panelEdge;
-    context.lineWidth = 3;
-    roundRect(context, x, y, width, height, 14);
-    context.stroke();
-    text(title, VIEW.width / 2, y + 52, 34, accent, 'center', 800);
-    lines.forEach((line, index) => {
-      text(line, VIEW.width / 2, y + 96 + index * 30, 16, PALETTE.ink, 'center', 600);
-    });
-    // The prompt is always shown: the overlay screens freeze the world, so a
-    // time-based blink could freeze it invisible in a screenshot.
-    text(prompt, VIEW.width / 2, y + height - 24, 15, PALETTE.ticketRed, 'center', 800);
+    text(muted ? 'BISU' : 'SUARA', HUD_BUTTONS.mute.x + 26, HUD_BUTTONS.mute.y + 23, 11, '#fff6e4', 'center', 800);
+    text('JEDA', HUD_BUTTONS.pause.x + 26, HUD_BUTTONS.pause.y + 23, 11, '#fff6e4', 'center', 800);
   }
 
   function draw(state, screen, best, muted) {
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.fillStyle = '#1a120a';
+    context.fillStyle = PALETTE.backdrop;
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
-    drawFloor(state);
+
+    drawWarmFloor(context);
+    drawKitchenMat(context);
+    drawWarungAwning(context);
     drawBoard(state);
+    drawStationShadows(context);
+    drawWallProps(context, state);
+    drawForegroundProps(context);
     drawBins();
     drawTalenan(state);
     drawWajan(state);
@@ -765,41 +931,68 @@ export function createRenderer(canvas) {
     drawPiring(state);
     drawSaji(state);
     drawTrash();
+    drawHandTray(state);
     drawCook(state);
-    drawParticles(state);
+    drawAmbientLighting(context, state);
+    drawParticles(state, screen === SCREEN_PLAY);
     drawHUD(state, muted);
-    text('Klik: jalan & pakai  •  WASD: gerak  •  Spasi/E: pakai  •  Q: buang  •  P: jeda  •  M: suara', 640, 714, 12, '#8a7a5a', 'center', 600);
+
+    // Subtle dark-teak bottom controls bar.
+    roundRect(context, 310, 695, 660, 21, 7);
+    context.fillStyle = 'rgba(35, 23, 17, 0.78)';
+    context.fill();
+    text(
+      'Klik: jalan & pakai  |  WASD: gerak  |  Spasi/E: pakai  |  Q: buang  |  P: jeda  |  M: suara',
+      640,
+      710,
+      11,
+      '#f6e7cb',
+      'center',
+      600,
+    );
+
     if (screen === SCREEN_TITLE) {
-      panel(
-        'WARUNG NASI GORENG',
-        ['RUSH HOUR — masak pesanan secepatnya, jangan sampai pelanggan pergi!', 'Ambil bahan, cincang, masak di wajan, sajikan di meja saji.', '3 hari. 3 pesanan gagal dalam sehari dan warung tutup.'],
-        'KLIK ATAU SPASI UNTUK MULAI',
-        '#c0392b',
-      );
-      text(`Skor terbaik: Rp${best.toLocaleString('id-ID')}`, 640, 500, 15, '#7a5a3a', 'center', 700);
+      drawTitleScreen(context, state, best);
     } else if (screen === SCREEN_PAUSED) {
-      panel('JEDA', ['Warung sedang istirahat sejenak.'], 'SPASI / P UNTUK LANJUT', '#2b2118');
+      drawOverlayModal(context, 'JEDA', ['Warung sedang istirahat sejenak.'], 'SPASI / P UNTUK LANJUT', PALETTE.wood);
     } else if (screen === SCREEN_DAYCLEAR) {
-      panel(
+      drawOverlayModal(
+        context,
         `HARI ${state.day} SELESAI!`,
-        [`Pesanan tersaji: ${state.servedToday}/${state.quota}`, `Bonus sisa waktu: Rp${state.dayBonus.toLocaleString('id-ID')}`, `Total koin: Rp${state.coins.toLocaleString('id-ID')}`],
+        [
+          `Pesanan tersaji: ${state.servedToday}/${state.quota}`,
+          `Bonus sisa waktu: Rp${state.dayBonus.toLocaleString('id-ID')}`,
+          `Total koin: Rp${state.coins.toLocaleString('id-ID')}`,
+        ],
         'KLIK UNTUK LANJUT KE HARI BERIKUTNYA',
-        '#2e7d32',
+        PALETTE.green,
       );
     } else if (screen === SCREEN_OVER) {
       const reason = state.overReason === 'time' ? 'Waktu shift habis sebelum kuota terpenuhi.' : 'Terlalu banyak pesanan gagal.';
-      panel(
+      drawOverlayModal(
+        context,
         'WARUNG TUTUP!',
-        [reason, `Pesanan tersaji: ${state.served}`, `Pesanan gagal: ${state.failed}`, `Koin: Rp${state.coins.toLocaleString('id-ID')}  •  Terbaik: Rp${best.toLocaleString('id-ID')}`],
+        [
+          reason,
+          `Pesanan tersaji: ${state.served}`,
+          `Pesanan gagal: ${state.failed}`,
+          `Koin: Rp${state.coins.toLocaleString('id-ID')}  |  Terbaik: Rp${best.toLocaleString('id-ID')}`,
+        ],
         'TEKAN R / KLIK UNTUK MAIN LAGI',
-        '#c0392b',
+        PALETTE.terracotta,
       );
     } else if (screen === SCREEN_WIN) {
-      panel(
+      drawOverlayModal(
+        context,
         'JUARA WARUNG!',
-        ['Tiga hari penuh terlewati, semua pelanggan pulang kenyang.', `Pesanan tersaji: ${state.served}`, `Pesanan gagal: ${state.failed}`, `Koin: Rp${state.coins.toLocaleString('id-ID')}  •  Terbaik: Rp${best.toLocaleString('id-ID')}`],
+        [
+          'Tiga hari penuh terlewati, semua pelanggan pulang kenyang.',
+          `Pesanan tersaji: ${state.served}`,
+          `Pesanan gagal: ${state.failed}`,
+          `Koin: Rp${state.coins.toLocaleString('id-ID')}  |  Terbaik: Rp${best.toLocaleString('id-ID')}`,
+        ],
         'TEKAN R / KLIK UNTUK MAIN LAGI',
-        '#2e7d32',
+        PALETTE.green,
       );
     }
   }

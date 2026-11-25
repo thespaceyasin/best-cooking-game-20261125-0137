@@ -4,6 +4,7 @@
 // announcements) without the world knowing about screens or sound. Every random choice
 // comes from the seeded random source, so the same seed plays the same game.
 
+import { createRandom } from './random.js';
 import {
   BOARD,
   BURN_GRACE,
@@ -82,12 +83,17 @@ export function createWorld(random) {
     ],
     dispenser: { pouring: false, progress: 0 },
     particles: [],
+    fx: [],
     floats: [],
     flash: 0,
+    talenanFlash: 0,
+    burnFlash: 0,
+    serveGlow: 0,
     overReason: null,
     dayBonus: 0,
   };
   let pendingAction = null;
+  let fxRand = createRandom(0x517cc1b7);
 
   function dayParams() {
     return DAYS[state.day - 1];
@@ -95,6 +101,7 @@ export function createWorld(random) {
 
   function reset(day) {
     state.day = day;
+    fxRand = createRandom(((day * 2654435761) ^ 0x517cc1b7) >>> 0);
     if (day === 1) {
       // A fresh run: the title screen's attract mode and a restart both come
       // through here, so the run totals start over instead of keeping the
@@ -128,8 +135,12 @@ export function createWorld(random) {
     ];
     state.dispenser = { pouring: false, progress: 0 };
     state.particles = [];
+    state.fx = [];
     state.floats = [];
     state.flash = 0;
+    state.talenanFlash = 0;
+    state.burnFlash = 0;
+    state.serveGlow = 0;
     state.overReason = null;
     state.dayBonus = 0;
     pendingAction = null;
@@ -142,6 +153,67 @@ export function createWorld(random) {
   function addFloat(x, y, text, color) {
     state.floats.push({ x, y, text, color, life: 1.4 });
     if (state.floats.length > 24) state.floats.shift();
+  }
+
+  function addFx(entry) {
+    state.fx.push(entry);
+    if (state.fx.length > 140) state.fx.shift();
+  }
+
+  function emitChopBits(color) {
+    state.talenanFlash = 1;
+    for (let i = 0; i < 10; i += 1) {
+      const ang = fxRand.range(-Math.PI * 0.92, -Math.PI * 0.08);
+      const spd = fxRand.range(55, 130);
+      addFx({
+        kind: 'chop',
+        x: 524 + fxRand.range(-10, 10),
+        y: 218 + fxRand.range(-6, 6),
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        size: fxRand.range(4.2, 6.8),
+        grow: 0,
+        life: fxRand.range(0.36, 0.58),
+        maxLife: 0.58,
+        color,
+      });
+    }
+  }
+
+  function emitSparkles(x, y, count, color = '#ffd86b') {
+    for (let i = 0; i < count; i += 1) {
+      const ang = (Math.PI * 2 * i) / count + fxRand.range(-0.2, 0.2);
+      const spd = fxRand.range(28, 82);
+      addFx({
+        kind: 'sparkle',
+        x: x + fxRand.range(-12, 12),
+        y: y + fxRand.range(-8, 8),
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 14,
+        size: fxRand.range(4.5, 7.5),
+        grow: -2,
+        life: fxRand.range(0.4, 0.75),
+        maxLife: 0.75,
+        color,
+      });
+    }
+  }
+
+  function emitSmokePuff(x, y, count, color) {
+    for (let i = 0; i < count; i += 1) {
+      addFx({
+        kind: 'smoke',
+        x: x + fxRand.range(-36, 36),
+        y: y + fxRand.range(-8, 8),
+        vx: fxRand.range(-24, 24),
+        vy: fxRand.range(-68, -28),
+        size: fxRand.range(7, 13),
+        grow: 18,
+        life: fxRand.range(0.6, 1.05),
+        maxLife: 1.05,
+        color,
+      });
+    }
   }
 
   function addParticles(x, y, color, count, speed) {
@@ -229,8 +301,10 @@ export function createWorld(random) {
       slot.item = item;
       slot.timer = 1.5;
     }
-    addFloat(900, 340, `+Rp${total.toLocaleString('id-ID')}`, '#2e7d32');
+    state.serveGlow = 1;
+    addFloat(900, 340, `+Rp${total.toLocaleString('id-ID')}`, '#1f6f43');
     addParticles(900, 350, '#f2c94c', 14, 90);
+    emitSparkles(900, 346, 12, '#ffd86b');
     return { total, perfect: Boolean(item.perfect) };
   }
 
@@ -287,6 +361,7 @@ export function createWorld(random) {
       if (board.item.kind === 'ing') {
         board.chops += 1;
         addParticles(580, 210, '#e8a87c', 6, 60);
+        emitChopBits(INGREDIENTS[board.item.id].color);
         events = EVENT_CHOP;
         if (board.chops >= CHOPS_NEEDED) {
           board.item = { kind: 'chopped', id: choppedId(board.item.id) };
@@ -366,6 +441,7 @@ export function createWorld(random) {
         }
         const cooked = takeFromHand(cookedIndex);
         state.plates[slot] = { dishId: cooked.dishId, kerupuk: false, perfect: cooked.perfect };
+        emitSparkles(532 + slot * 96, 346, 6, '#ffd86b');
         return EVENT_PLATE;
       }
       const kerupukIndex = handHas((item) => item.kind === 'ing' && item.id === 'kerupuk');
@@ -461,6 +537,9 @@ export function createWorld(random) {
     let events = 0;
     state.time += dt;
     state.flash = Math.max(0, state.flash - dt);
+    state.talenanFlash = Math.max(0, state.talenanFlash - dt * 4.5);
+    state.burnFlash = Math.max(0, state.burnFlash - dt * 2.2);
+    state.serveGlow = Math.max(0, state.serveGlow - dt * 2.0);
     if (state.comboTimer > 0) {
       state.comboTimer -= dt;
       if (state.comboTimer <= 0) state.combo = 0;
@@ -521,10 +600,39 @@ export function createWorld(random) {
       if (random.next() < dt * 14) {
         addParticles(820 + random.range(-30, 30), 190, '#bbbbbb', 1, 30);
       }
+      if (fxRand.next() < dt * 16) {
+        addFx({
+          kind: 'steam',
+          x: 814 + fxRand.range(-48, 48),
+          y: 202 + fxRand.range(-6, 4),
+          vx: fxRand.range(-12, 12),
+          vy: fxRand.range(-54, -30),
+          size: fxRand.range(8, 13),
+          grow: 16,
+          life: fxRand.range(0.65, 1.05),
+          maxLife: 1.05,
+          color: '#fff9ea',
+        });
+      }
+      if (fxRand.next() < dt * 11) {
+        addFx({
+          kind: 'sizzle',
+          x: 814 + fxRand.range(-56, 56),
+          y: 212 + fxRand.range(-8, 6),
+          vx: fxRand.range(-28, 28),
+          vy: fxRand.range(-44, -18),
+          size: fxRand.range(6.5, 9.5),
+          grow: -2.5,
+          life: fxRand.range(0.32, 0.52),
+          maxLife: 0.52,
+          color: '#ffe073',
+        });
+      }
       if (wok.progress >= 1) {
         wok.cooking = false;
         wok.ready = true;
         wok.readyTimer = 0;
+        emitSparkles(820, 212, 8, '#ffd86b');
         events |= EVENT_READY;
       }
     } else if (wok.ready) {
@@ -532,7 +640,10 @@ export function createWorld(random) {
       if (wok.readyTimer > BURN_GRACE) {
         wok.ready = false;
         wok.burnt = true;
+        state.burnFlash = 1;
+        state.flash = Math.max(state.flash, 0.45);
         addParticles(820, 190, '#444444', 18, 60);
+        emitSmokePuff(820, 206, 14, '#3a3430');
         events |= EVENT_BURN;
       }
     }
@@ -579,6 +690,14 @@ export function createWorld(random) {
       particle.life -= dt;
     }
     state.particles = state.particles.filter((particle) => particle.life > 0);
+    for (const item of state.fx) {
+      item.x += item.vx * dt;
+      item.y += item.vy * dt;
+      if (item.kind === 'chop') item.vy += 260 * dt;
+      item.size = Math.max(1, item.size + item.grow * dt);
+      item.life -= dt;
+    }
+    state.fx = state.fx.filter((item) => item.life > 0);
     for (const float of state.floats) {
       float.y -= 26 * dt;
       float.life -= dt;

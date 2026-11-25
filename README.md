@@ -31,9 +31,9 @@ http://localhost:8080).
 
 Real renders of the game's own code:
 
-- `screenshots/1-cover.jpg`: day 1 in full rush, wok cooking, plate ready
-- `screenshots/2-start.jpg`: day 1, first order
-- `screenshots/3-rush.jpg`: day 3, four tickets at once
+- `screenshots/1-cover.jpg`: day 1 in full rush, wok cooking with steam and sizzle, plate ready
+- `screenshots/2-start.jpg`: warung signboard title screen with hanging lanterns and 4-step guide
+- `screenshots/3-rush.jpg`: day 3, four tickets on the order board with matching ready plate
 - `screenshots/4-end.jpg`: warung closed after too many failed orders
 
 ## License
